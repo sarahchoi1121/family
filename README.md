@@ -1,28 +1,17 @@
-# Family Finance PWA 0.2
+# Family Finance PWA v0.4 — Bank balances
 
-## Included
-- Responsive installable iPhone PWA
-- Local income and expense tracking in GBP
-- Payment accounts and payer
-- Itemised receipt OCR via Tesseract.js CDN (internet required)
-- Editable item categories and memorised categorisation rules
-- Monthly dashboard and transaction search
-- JSON backup/restore and CSV export
-- Offline shell via service worker (after first online visit)
+Upload all public files to the **root** of your existing GitHub Pages repository. Do NOT upload any personal Excel, JSON history or backups.
 
-## Deployment without a computer
-1. Create a free GitHub account and a NEW PUBLIC repository named `family-finance-pwa` (source code only; NEVER upload receipt images, bank statements, API keys or backups).
-2. In Safari, open the repository, use Add file > Upload files, and upload the files from this ZIP (unzipped via iPhone Files).
-3. Open repository Settings > Pages > Build and deployment > Deploy from a branch > main / (root), Save.
-4. Wait for GitHub Pages to publish at https://YOURUSERNAME.github.io/family-finance-pwa/ .
-5. Open that HTTPS address in iPhone Safari > Share > Add to Home Screen > Add.
+## Added
+- Account balances on Home, and confirmed-balance/date entry under Settings
+- Balance calculated from confirmed statement amount plus income/expenses **after** the confirmation date
+- Transfer between accounts, excluded from income and expense totals
+- Existing v0.3 localStorage data retained (same key)
 
 ## Important limitations
-- **No cloud sync or multi-user login in 0.2.** Each device has its own isolated local data. Sharing a URL does not share the ledger.
-- The source code can be public, but transactions are saved only in browser localStorage. Do not enter sensitive bank account numbers.
-- OCR relies on an external CDN for its JavaScript engine. The selected image is processed in the browser by Tesseract.js, not intentionally uploaded to a backend. The CDN is a third party and requires internet to load.
-- OCR receipt item parsing is heuristic and will miss or misread lines, discounts and quantities. Review carefully.
-- Receipt images are NOT retained in this build.
-- Discounts need to be allocated manually to relevant item prices. Negative discount lines are blocked on save.
-- LocalStorage can be erased by clearing website data or browser eviction. Export regular JSON backups.
-- iCloud sharing requires a future backend with authenticated user access, per-household permissions, and server-side row-level security. Do not place private Supabase service-role keys in browser code.
+- No automatic bank connection or iCloud/household sync
+- Historical Excel bank movements alone do not prove current balances
+- Imported historical transfers are not reconstructed into two-sided transfers; reconcile each bank account using a recent bank statement
+- Transactions recorded on the same day as a snapshot are excluded to avoid double counting: use end-of-day statement balance
+- All data stays in local browser storage; export a JSON backup before updating
+- Deleting transfers removes the movement from both accounts; existing v0.3 history import remains unchanged
