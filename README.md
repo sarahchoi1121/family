@@ -18,3 +18,10 @@ All 12 source worksheets are preserved as populated cell values and formulas in 
 - Compare tab: year-by-year income, expenses and net cash flow, plus per-category comparisons for any two years. Default YTD period uses Jan 1–Nov 1 for fair comparisons to the supplied 2026 archive.
 - No private financial data is bundled. Existing local data is preserved by using the same localStorage key.
 - Back up ledger JSON and original workbook archive before deployment. This build has not been tested on physical iPhone.
+
+## v0.7 additions
+- Compare all imported years side-by-side, with start/end month selectors (default Jan–Oct).
+- Same month range applies to annual bars and category comparison; future years update automatically.
+- Category names differing only in case/whitespace are combined for comparison display; ledger remains untouched.
+- Hide all-zero categories; horizontal scrolling for narrow iPhones.
+- Back up ledger and archive before uploading. No private financial data included.
