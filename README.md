@@ -3,3 +3,5 @@ Fixes: backup restore and category profile import persist to IndexedDB; Compare 
 To match your Excel category groups, import the separate PRIVATE category profile locally via Settings > Custom category profiles.
 Original Excel vs imported transactions may still differ: classification alone does not correct missing, extra or differing transactions.
 Export backup before deploying or changing category settings.
+
+Version 1.2.2: clean empty category template for new users; optional Clear category template control removes locally saved profile names without deleting transactions. Existing local data is never silently reset.
