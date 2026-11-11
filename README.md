@@ -25,3 +25,6 @@ All 12 source worksheets are preserved as populated cell values and formulas in 
 - Category names differing only in case/whitespace are combined for comparison display; ledger remains untouched.
 - Hide all-zero categories; horizontal scrolling for narrow iPhones.
 - Back up ledger and archive before uploading. No private financial data included.
+
+## v0.8
+Category comparison now has an independent Expense / Income / Net cash flow selector. All-year table and year bars respect the same month range. Zero-only categories are hidden based on the selected metric. A totals row is included. No private ledger data is bundled.
