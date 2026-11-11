@@ -12,7 +12,7 @@
   const a=+from.value,b=+to.value,ys=years();if(a>b){$('yearBars').textContent='Start month must not be after end month.';$('categoryComparison').textContent='Choose a valid month range.';return}
   const tx=db.transactions.filter(t=>/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')&&+t.date.slice(5,7)>=a&&+t.date.slice(5,7)<=b&&t.type!=='transfer'&&(currencySel.value==='ALL'||FFCurrency.currency(t)===currencySel.value));
   const currencies=[...new Set(tx.map(FFCurrency.currency))].sort(), data=new Map(),cats=new Map();
-  for(const t of tx){const c=FFCurrency.currency(t),y=t.date.slice(0,4),group=FFMapping.classify(t.category),n=cents(t),signed=(t.sourceAmount!==undefined&&Number.isFinite(Number(t.sourceAmount)))?Number(t.sourceAmount):null,sign=signed!==null?(signed<0?-1:1):(t.type==='income'&&group!=='income'?-1:1);const key=c+'|'+y;
+  for(const t of tx){const c=FFCurrency.currency(t),y=t.date.slice(0,4),mapped=FFMapping.classify(t.category),group=t.type==='income'?'income':(mapped==='income'?'nonrecurring':mapped),n=cents(t),signed=(t.sourceAmount!==undefined&&Number.isFinite(Number(t.sourceAmount)))?Number(t.sourceAmount):null,sign=signed!==null?(signed<0?-1:1):1;const key=c+'|'+y;
    if(!data.has(key))data.set(key,zero());const r=data.get(key);if(group==='income')r.income+=n;else{r.expense+=n*sign;r[group]+=n*sign}
    const name=String(t.category||'Uncategorised').trim()||'Uncategorised',k=c+'|'+FFMapping.norm(name);if(!cats.has(k))cats.set(k,{name,c,group,vals:new Map()});const cat=cats.get(k);if(!cat.vals.has(y))cat.vals.set(y,zero());const v=cat.vals.get(y);if(group==='income')v.income+=n;else{v.expense+=n*sign;v[group]+=n*sign}
   }
