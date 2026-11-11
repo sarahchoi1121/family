@@ -4,6 +4,7 @@
  const els=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
  const kind=t=>t.type==='transfer'?'transfer':t.type==='income'?'income':window.FFMapping?FFMapping.classify(t.category):'nonrecurring';
+ const accountKey=s=>window.FFAccounts?FFAccounts.find(s)?.key||FFAccounts.key(s):String(s||'').trim().replace(/\s+/g,' ').toLocaleLowerCase('en-GB');
  const curr=t=>window.FFCurrency?FFCurrency.currency(t):t.currency||'GBP';
  const values=(items,all)=>[["",all],...items.map(x=>[String(x),String(x)])];
  function setOptions(el,options){const old=el.value;el.replaceChildren(...options.map(([v,label])=>new Option(label,v)));el.value=options.some(([v])=>v===old)?old:''}
@@ -12,7 +13,7 @@
   setOptions(els.historyMonth,[['','All months'],...months.map((m,i)=>[String(i+1).padStart(2,'0'),m])]);
   setOptions(els.historyCategory,values([...new Set(ts.map(t=>String(t.category||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),'All categories'));
   setOptions(els.historyCurrency,values([...new Set(ts.map(curr))].sort(),'All currencies'));
-  setOptions(els.historyAccount,values([...new Set(ts.map(t=>String(t.account||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),'All accounts'));
+  const accountLabels=window.FFAccounts?FFAccounts.groups().map(g=>[g.key,g.label]):[];if(!window.FFAccounts){for(const a of [...(db.accounts||[]),...ts.map(t=>t.account)]){const key=accountKey(a);if(key&&!accountLabels.some(x=>x[0]===key))accountLabels.push([key,String(a).trim()])}}setOptions(els.historyAccount,[['','All accounts'],...accountLabels.sort((a,b)=>a[1].localeCompare(b[1],'en-GB'))]);
   setOptions(els.historyType,[['','All types'],['income','Income'],['recurring','Recurring'],['nonrecurring','Non-recurring'],['fixed','Fixed assets'],['transfer','Transfers']]);
  }
  function update(){refreshOptions();const q=String(document.getElementById('search').value||'').toLocaleLowerCase().trim();
@@ -24,7 +25,7 @@
     &&(!f.historyMonth||date.slice(5,7)===f.historyMonth)
     &&(!f.historyCategory||String(t.category||'')===f.historyCategory)
     &&(!f.historyCurrency||curr(t)===f.historyCurrency)
-    &&(!f.historyAccount||String(t.account||'')===f.historyAccount)
+    &&(!f.historyAccount||accountKey(t.account)===f.historyAccount)
     &&(!f.historyType||kind(t)===f.historyType);
   }).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
   document.getElementById('historyList').innerHTML=transactionHtml(matches);
