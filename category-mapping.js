@@ -1,14 +1,14 @@
 /* v1.0 local category profiles; no private ledger bundled. */
 (()=>{'use strict';
  const norm=s=>String(s||'Uncategorised').trim().replace(/\s+/g,' ').toLocaleLowerCase('en-GB');
- const seedIncome=['Cash Rebate','Avery','Valerie','Interest','Sarah Salary','Zac Salary'];
+ // No personal categories are bundled. Existing local categories are retained on upgrade.
  const hints={recurring:/food|grocery|grocer|electric|gas|water|broadband|internet|phone|insurance|mortgage|rent|council tax|pet|fuel|utility|subscription|tax|school|nursery|childcare|parking|transport|household|health|medical|dental/i,fixed:/^car$|vehicle purchase|property purchase|house purchase|solar panel|fixed asset/i};
  db.categoryGroups ||= {};
  db.categoryProfile ||= {name:'My family',categories:[]};
  const p=db.categoryProfile;
  if(!Array.isArray(p.categories))p.categories=[];
- // One-time migration: preserve previously locked income and existing expense mappings.
- if(!p.migratedV1){const known=new Map();for(const c of seedIncome)known.set(norm(c),{name:c,kind:'income',active:true});for(const t of db.transactions){const name=String(t.category||'Uncategorised').trim()||'Uncategorised',k=norm(name);if(!known.has(k))known.set(k,{name,kind:db.categoryGroups[k]|| (hints.fixed.test(k)?'fixed':hints.recurring.test(k)?'recurring':'nonrecurring'),active:true})}for(const [k,v] of Object.entries(db.categoryGroups)){if(!known.has(k))known.set(k,{name:k,kind:v,active:true})}for(const c of p.categories)known.set(norm(c.name),c);p.categories=[...known.values()];p.migratedV1=true;try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){console.warn('Profile migration not persisted; export backup',e)}}
+ // One-time migration: derive categories exclusively from local transactions, saved mappings and user profile.
+ if(!p.migratedV1){const known=new Map();for(const t of db.transactions){const name=String(t.category||'Uncategorised').trim()||'Uncategorised',k=norm(name);if(!known.has(k))known.set(k,{name,kind:db.categoryGroups[k]|| (hints.fixed.test(k)?'fixed':hints.recurring.test(k)?'recurring':'nonrecurring'),active:true})}for(const [k,v] of Object.entries(db.categoryGroups)){if(!known.has(k))known.set(k,{name:k,kind:v,active:true})}for(const c of p.categories)known.set(norm(c.name),c);p.categories=[...known.values()];p.migratedV1=true;try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){console.warn('Profile migration not persisted; export backup',e)}}
  function lookup(name){return p.categories.find(c=>norm(c.name)===norm(name))}
  function classify(name){const c=lookup(name);if(c)return c.kind;const k=norm(name);return db.categoryGroups[k]|| (hints.fixed.test(k)?'fixed':hints.recurring.test(k)?'recurring':'nonrecurring')}
  function list(){const m=new Map(p.categories.map(c=>[norm(c.name),c]));for(const t of db.transactions){const k=norm(t.category);if(!m.has(k)){const c={name:String(t.category||'Uncategorised').trim()||'Uncategorised',kind:classify(t.category),active:true};p.categories.push(c);m.set(k,c)}}return [...m.values()].sort((a,b)=>a.name.localeCompare(b.name,'en-GB'))}

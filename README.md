@@ -1,8 +1,7 @@
-# Family Finance v1.0.1 — Import & Backup settings cleanup
+# Family Finance v1.0.3 — Privacy cleanup
 
-This public PWA update groups the existing full Excel archive import, transactions-only import, and backup controls into one Settings → Import & Backup area. The transactions-only importer is collapsed by default. No import IDs, transaction data formats, or storage keys were changed. This update does not add automatic deduplication across different import file formats.
+This public release removes all household-specific income category seeds from the application source. Category profiles are now derived only from existing on-device transactions, mappings and user-created categories. New installations do not include personal income categories. Existing saved profiles and transaction data are intentionally not erased by the update.
 
-Before updating, export your private ledger JSON and archived workbook JSON separately. Never upload private financial data to public GitHub. Upload the extracted public files to the repository root and allow GitHub Pages to deploy. Existing data is device-local; do not clear Safari website data.
+IMPORTANT: Previously published source code may remain in Git history and third-party caches even after replacing files. If the repository was public, review its commit history and consider restricting access or rewriting history. Never upload private transaction files or profile exports to GitHub.
 
-
-v1.0.2: Compare has a collapsed Income & expenses summary for Income, Recurring, Non-recurring and Fixed assets by year, respecting month filters. Net cash flow removed from both comparison dropdowns. No changes to stored transaction data.
+Before updating, export a JSON backup from the existing app. Do not clear Safari website data.
