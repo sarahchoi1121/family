@@ -28,3 +28,16 @@ All 12 source worksheets are preserved as populated cell values and formulas in 
 
 ## v0.8
 Category comparison now has an independent Expense / Income / Net cash flow selector. All-year table and year bars respect the same month range. Zero-only categories are hidden based on the selected metric. A totals row is included. No private ledger data is bundled.
+
+
+## v0.9 reporting update
+Income classification is restricted to Cash Rebate, Avery, Valerie, Interest, Sarah Salary and Zac Salary. All other Excel categories are expense categories and may be mapped to recurring, non-recurring or fixed assets in Settings. Year and category comparison offer those group filters. Mappings are kept in local JSON backup; original imported transactions are unchanged. Review inferred groupings and source credits before treating totals as audited. This does not add cloud sync.
+
+
+## v1.0 custom category profiles
+- Migrates v0.9 six income categories and existing expense mappings to editable per-device category profile.
+- Add, rename, change Income/Recurring/Non-recurring/Fixed type, deactivate, export/import category profile JSON.
+- Historical source transaction category strings are not rewritten; renamed categories use aliases for report classification.
+- Profile and mapping live inside the existing private ledger backup (localStorage); never upload private backup to public GitHub.
+- Imported Excel categories not in profile are added as expense suggestions. Review classification manually.
+- This version has not been tested on a physical iPhone; export ledger and archive backups before updating. No two-device sync.
