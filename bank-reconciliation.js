@@ -1,4 +1,4 @@
-/* Family Finance bank reconciliation v1.1.0. Local-only; no currency conversion. */
+/* Family Finance bank reconciliation v1.1.1. Local-only; no currency conversion. */
 (()=>{
   db.reconciliationHistory ||= [];
   const host=document.getElementById('bankReconciliation');
@@ -38,7 +38,7 @@
     host.innerHTML=`<p class="notice">Compare the bank's actual balance with transactions recorded after a confirmed opening balance. Each account uses its own currency; no conversion. Transactions on the opening date are included in that opening balance, not counted again.</p>
       <label>Account</label><select id="recAccount">${list.map(g=>`<option value="${esc(g.label)}">${esc(g.label)} (${esc(cur(g.label))})</option>`).join('')}</select>
       <label>Statement date</label><input id="recDate" type="date" value="${esc(currentDate)}" />
-      <label>Actual bank balance</label><input id="recActual" type="number" step="0.01" placeholder="Enter bank statement balance" value="${esc(actual)}" />
+      <label>Actual bank balance (enter manually)</label><input id="recActual" type="number" step="0.01" placeholder="Enter bank statement balance" value="${esc(actual)}" />
       <div id="recPreview" class="receipt-item" style="margin-top:12px"></div>
       <button id="recSave" type="button" style="margin-top:10px;width:100%">Save reconciliation</button>
       <details style="margin-top:12px"><summary>Previous reconciliation records</summary><div id="recHistory"></div></details>`;
@@ -65,7 +65,7 @@
     if(r.error){p.textContent=r.error;host.querySelector('#recSave').disabled=true}
     else{
       p.innerHTML=`<div class="line"><span>Opening balance · ${esc(r.snap.date)}</span><strong>${esc(fmt(r.snap.amount,r.currency))}</strong></div>
-        <div class="line"><span>Recorded movement (${r.m.count})</span><strong>${esc(fmt(r.m.amount,r.currency))}</strong></div>
+        <div class="line"><span>History movement (${r.m.count} transactions)</span><strong>${esc(fmt(r.m.amount,r.currency))}</strong></div>
         <div class="line"><span>Calculated balance · ${esc(r.date)}</span><strong>${esc(fmt(r.expected,r.currency))}</strong></div>
         <div class="line"><span>Difference (actual − calculated)</span><strong>${r.difference===null?'Enter actual balance':esc(fmt(r.difference,r.currency))}</strong></div>
         ${r.m.skipped?`<p class="notice">Warning: ${r.m.skipped} account movements have a different currency and were excluded. Check their currency before reconciling.</p>`:''}
