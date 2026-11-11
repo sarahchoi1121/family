@@ -22,7 +22,7 @@
     return `<div class="line"><div><strong>${escapeHtml(name)}</strong><div class="muted">${snap?'Confirmed '+escapeHtml(snap.date):'Not reconciled'}</div></div><strong>${b===null?'Not set':money(b)}</strong></div>`;
   }
   function drawBalances(){
-    $('homeAccountBalances').innerHTML=db.accounts.map(balanceRow).join('');
+    const known=db.accounts.map(name=>({name,b:accountBalance(name)})).filter(x=>x.b!==null);const total=known.reduce((sum,x)=>sum+Math.round(x.b*100),0)/100;const missing=db.accounts.length-known.length;const expanded=localStorage.getItem('ff_balance_expanded')==='1';$('homeAccountBalances').innerHTML=`<button type="button" id="balanceToggle" class="balance-toggle" aria-expanded="${expanded}"><span><span class="balance-total">${known.length?money(total):'Not reconciled'}</span><br><small>${known.length} confirmed · ${missing} unverified ${missing?'· total excludes unverified accounts':''}</small></span><span>${expanded?'▲':'▼'}</span></button><div id="balanceDetail" class="balance-detail" ${expanded?'':'hidden'}>${db.accounts.map(balanceRow).join('')}</div>`;$('balanceToggle').onclick=()=>{const detail=$('balanceDetail');detail.hidden=!detail.hidden;$('balanceToggle').setAttribute('aria-expanded',String(!detail.hidden));$('balanceToggle').lastElementChild.textContent=detail.hidden?'▼':'▲';localStorage.setItem('ff_balance_expanded',detail.hidden?'0':'1')};
     let host=$('balanceSettings');host.replaceChildren();
     db.accounts.forEach(name=>{
       let snap=db.accountSnapshots[name]||{};

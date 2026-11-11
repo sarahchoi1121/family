@@ -11,3 +11,10 @@ Upload the PUBLIC ZIP contents to GitHub Pages root. **Never upload the PRIVATE 
 All 12 source worksheets are preserved as populated cell values and formulas in IndexedDB. The archive viewer shows the first 300 rows/22 columns; exported archive preserves all. Source Excel formatting, charts and workbook formula evaluation are not reproduced. Five bank movement sheets are mapped to transactions; remaining worksheets are retained as reference data, **not** booked again as income/expense.
 
 **Limitations:** Internal transfers identified by text are tentative and may not be paired; duplicate checks use source IDs and cannot automatically match records imported from earlier v0.3 files. Reconciliation requires actual bank balances. Historical negative movements are provisionally treated as income/refund; validate. No iCloud or cross-phone sync. Data stored locally, not backed up automatically. The v0.5 private file is sensitive.
+
+
+## v0.6 additions
+- Home account balances collapse by default; total includes only accounts with confirmed snapshot balances, including negative credit card amounts. Expand/collapse state is saved locally.
+- Compare tab: year-by-year income, expenses and net cash flow, plus per-category comparisons for any two years. Default YTD period uses Jan 1–Nov 1 for fair comparisons to the supplied 2026 archive.
+- No private financial data is bundled. Existing local data is preserved by using the same localStorage key.
+- Back up ledger JSON and original workbook archive before deployment. This build has not been tested on physical iPhone.
