@@ -1,1 +1,5 @@
-Family Finance v1.0.5 PUBLIC. Account currency settings, per-currency balances, same-currency transfers, and transaction editing. No private financial records included. Back up before updating. Cross-currency transfers are blocked until dual-amount support is implemented. Existing snapshots are cleared if an account currency changes. Original imported Excel archive is unchanged. Not tested on iPhone.
+Family Finance v1.0.6 PUBLIC
+
+History filters: year, month, category, currency, account, transaction type; search, clear, count and currency-separated net totals. All local. No personal transaction data included.
+
+Before replacing GitHub Pages files, export a private JSON backup. Do not upload any backup or Excel data to GitHub.
