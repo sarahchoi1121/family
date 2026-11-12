@@ -1,1 +1,1 @@
-Family Finance v1.2.5 — category profile sync fix. No personal data bundled.
+Family Finance v1.2.8: compact bank accounts, gift card merchant wallet, manual cash denominations. PUBLIC CODE ONLY. Backup before deploying.
