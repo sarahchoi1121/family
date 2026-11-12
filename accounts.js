@@ -14,7 +14,7 @@
     if(!snapshot || !/^\d{4}-\d{2}-\d{2}$/.test(snapshot.date) || !Number.isFinite(Number(snapshot.amount)))return null;
     let result=cents(snapshot.amount);
     for(const t of db.transactions){if(t.comparisonMonthly)continue;
-      if(!t.date || t.date<=snapshot.date)continue;
+      if(!t.date || (snapshot.mode==='opening'?t.date<snapshot.date:t.date<=snapshot.date))continue;
       if(t.type!=='transfer' && (window.FFCurrency?FFCurrency.currency(t):(t.currency||'GBP'))!==accountCurrency(name))continue;
       if(t.type==='transfer' && t.transferTo){
         if(sameAccount(t.account,name))result-=cents(t.amount);
@@ -56,8 +56,8 @@
       const dl=document.createElement('label');dl.textContent='As of date';const date=document.createElement('input');date.type='date';date.value=snap.date||dateToday();dateBox.append(dl,date);
       const cl=document.createElement('label');cl.textContent='Currency';const cs=document.createElement('select');['GBP','HKD','JPY','USD','EUR','AUD','CAD','CNY','SGD','CHF','TWD','NZD',...Object.values(db.accountCurrencies)].filter((x,i,a)=>a.indexOf(x)===i).forEach(c=>cs.add(new Option(c,c)));cs.value=currency;currencyBox.append(cl,cs);
       cs.onchange=()=>{if(cs.value===accountCurrency(name))return;if(!confirm('Change currency? Existing transactions and balances are not converted.')){cs.value=accountCurrency(name);return}for(const alias of group.aliases){db.accountCurrencies[alias]=cs.value;delete db.accountSnapshots[alias]};save();drawBalances()};
-      const btn=document.createElement('button');btn.className='secondary';btn.textContent='Save balance';btn.onclick=()=>{if(amount.value.trim()===''||!Number.isFinite(Number(amount.value))||!date.value){alert('Enter valid balance and date');return}if(date.value>dateToday()&&!confirm('Date is in future. Continue?'))return;db.accountSnapshots[group.snapshotKey]={amount:Math.round(Number(amount.value)*100)/100,date:date.value};save();drawBalances()};
-      editBox.append(currencyBox,amountBox,dateBox,btn);td.append(editBox);
+      const modeBox=document.createElement('div'),ml=document.createElement('label'),ms=document.createElement('select');ml.textContent='Balance type';[['closing','Closing (end of day)'],['opening','Opening (start of day)']].forEach(([v,t])=>ms.add(new Option(t,v)));ms.value=snap.mode||'closing';modeBox.append(ml,ms);const btn=document.createElement('button');btn.className='secondary';btn.textContent='Save balance';btn.onclick=()=>{if(amount.value.trim()===''||!Number.isFinite(Number(amount.value))||!date.value){alert('Enter valid balance and date');return}if(date.value>dateToday()&&!confirm('Date is in future. Continue?'))return;db.accountSnapshots[group.snapshotKey]={amount:Math.round(Number(amount.value)*100)/100,date:date.value,mode:ms.value};save();drawBalances()};
+      editBox.append(currencyBox,amountBox,dateBox,modeBox,btn);td.append(editBox);
       const recMount=document.createElement('div');recMount.className='inline-reconciliation';recMount.style.marginTop='12px';td.append(recMount);
       edit.onclick=()=>{const opening=detail.hidden;tbody.querySelectorAll('tr').forEach(row=>{if(row!==tr)row.hidden=row.dataset.detail==='yes'});detail.hidden=!opening; if(opening){const rec=document.getElementById('bankReconciliation');if(rec){rec.hidden=false;recMount.append(rec);const sel=rec.querySelector('#recAccount');if(sel){sel.value=name;sel.dispatchEvent(new Event('input',{bubbles:true}))}}}};
       detail.dataset.detail='yes';

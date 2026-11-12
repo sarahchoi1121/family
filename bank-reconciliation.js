@@ -14,10 +14,10 @@
   const dateToday=()=>new Date().toLocaleDateString('en-CA');
   const validDate=s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(Date.parse(s));
   const same=(a,b)=>window.FFAccounts?FFAccounts.equal(a,b):key(a)===key(b);
-  function movement(name,start,end){
+  function movement(name,start,end,includeStart=false){
     let sum=0,count=0,skipped=0;
     for(const t of db.transactions){if(t.comparisonMonthly)continue;
-      if(!validDate(t.date)||t.date<=start||t.date>end)continue;
+      if(!validDate(t.date)||(includeStart?t.date<start:t.date<=start)||t.date>end)continue;
       const source=same(t.account,name),destination=t.type==='transfer'&&t.transferTo&&same(t.transferTo,name);
       if(!source&&!destination)continue;
       if(t.type==='transfer'){
@@ -35,7 +35,7 @@
     const currentDate=host.querySelector('#recDate')?.value||dateToday();
     const actual=host.querySelector('#recActual')?.value||'';
     const list=groups();
-    host.innerHTML=`<p class="notice">Compare the bank's actual balance with transactions recorded after a confirmed opening balance. Each account uses its own currency; no conversion. Transactions on the opening date are included in that opening balance, not counted again.</p>
+    host.innerHTML=`<p class="notice">Compare the bank's actual balance with transactions recorded after a confirmed opening balance. Each account uses its own currency; no conversion. Closing balances include transactions on their date; opening balances count transactions on their date.</p>
       <label>Account</label><select id="recAccount">${list.map(g=>`<option value="${esc(g.label)}">${esc(g.label)} (${esc(cur(g.label))})</option>`).join('')}</select>
       <label>Statement date</label><input id="recDate" type="date" value="${esc(currentDate)}" />
       <label>Actual bank balance (enter manually)</label><input id="recActual" type="number" step="0.01" placeholder="Enter bank statement balance" value="${esc(actual)}" />
@@ -54,7 +54,7 @@
     if(!snap||!validDate(snap.date)||!Number.isFinite(Number(snap.amount)))return {error:'Set a confirmed opening balance first under Bank balances & reconciliation.'};
     if(!validDate(date)||date>dateToday())return {error:'Choose a valid statement date (today or earlier).'};
     if(date<snap.date)return {error:'Statement date is earlier than the confirmed opening balance. Choose a later date.'};
-    const m=movement(name,snap.date,date),expected=(minor(snap.amount)+minor(m.amount))/100;
+    const m=movement(name,snap.date,date,snap.mode==='opening'),expected=(minor(snap.amount)+minor(m.amount))/100;
     const raw=host.querySelector('#recActual').value.trim();
     const actual=raw!==''&&Number.isFinite(Number(raw))?Number(raw):null;
     const difference=actual===null?null:(minor(actual)-minor(expected))/100;
