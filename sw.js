@@ -1,4 +1,4 @@
-const CACHE='family-finance-v1221-camera-fix';
+const CACHE='family-finance-v1222-receipt-summary';
 const ASSETS=['./','./index.html','./recovery.html','./app.js','./history-import.js','./account-matching.js','./accounts.js','./full-import.js','./persistence.js','./comparison.js','./currency.js','./category-mapping.js','./edit-transactions.js','./history-filters.js','./bank-reconciliation.js','./wallet-tools.js','./cash-gift.js','./opening-balance-import.js','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
