@@ -23,35 +23,63 @@ function drawReceipt(){let host=$('receiptItems');host.replaceChildren();receipt
 function reconcile(){const {sum,vat}=receiptSummary(),total=Number($('receiptTotal').value)||0,diff=receiptRound(total-sum);$('itemsSum').textContent=money(sum);$('receiptVatSum').textContent=money(vat);$('receiptDifference').textContent=money(diff);$('reconcile').textContent=total?Math.abs(diff)<.011?'✓ Category total matches receipt total':`⚠ Difference: ${money(diff)}. Review VAT mode, coupons, missing items and receipt total.`:'Enter receipt total to verify.'}
 $('receiptTotal').oninput=reconcile;$('receiptVatMode').onchange=reconcile;$('addItem').onclick=()=>addReceiptItem();$('manualBtn').onclick=()=>{receipt=[];addReceiptItem()};
 function parseText(){
- const lines=$('rawText').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
- receipt=[];let pending='',couponSection=false,detectedCostco=lines.some(x=>/warehouse\s*receipt|costco|warehouse\s*\(UK\)/i.test(x));
- const moneyValue=x=>Number(String(x).replace(/[£,\s]/g,''));
- const isHeader=x=>/^(?:copy of|derby warehouse|chaddesden|wyvern|reg\. in|awrs|vat no|individual|mastercard|visa|\*{2,}|total\b|vat amount|subtotal|balance|change|cash|payment|card|receipt|transaction|date\b)/i.test(x);
- for(const line of lines){
+ const lines=$('rawText').value.split(/\r?\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);
+ receipt=[];let pending='',couponSection=false,merchant='',discounts=[];
+ const full=lines.join(' '),costco=/warehouse\s*receipt|costco/i.test(full),tesco=/tesco/i.test(full),aldi=/aldi\s*stores/i.test(full),sainsbury=/sainsbury/i.test(full),marks=/marksandspencer|m&s/i.test(full);
+ merchant=costco?'Costco':tesco?'Tesco':aldi?'Aldi':sainsbury?"Sainsbury's":marks?'M&S':'';
+ const val=x=>Number(String(x).replace(/[£,\s]/g,''));
+ const isFooter=x=>/^(?:\*+|total\b|subtotal\b|savings\b|promotions\b|balance\b|change\b|card\b|gift\s*card\b|new balance|clubcard points|nectar|points\b|cash\b|payment\b|vat\b|tax\b|net\b|items\b|card sales|goods\b|authori|terminal|merchant id|eft no|contactless|source\b|approved|thank you|please|your account|customer copy|verification|date\b|receipt\b|individual|copy of|reg\. in|awrs|mastercard|visa|smartshop|store\b|checkout\b|original price|price reduction|\d+\s*items\b|\d+\s*x\s*\d+\s*for\s*\d+)/i.test(x);
+ for(let k=0;k<lines.length;k++){
+  const line=lines[k];
   if(/^coupon\s*$/i.test(line)){couponSection=true;continue}
-  if(isHeader(line)){pending='';continue}
-  // Costco: SKU  quantity  unit price  extended price  VAT code. The NAME is on the previous line.
-  const sku=line.match(/^\d{3,12}\s+(\d+)\s*[xX×]\s+(-?\d+[.,]\d{2})\s+(-?\d+[.,]\d{2})\s*([AZ])?\s*$/i);
-  if(sku){
-   const price=moneyValue(sku[3]);let name=pending||`Item ${line.match(/^\d+/)[0]}`;
-   const coupon=price<0||couponSection||/coupon|discount|saving|promo/i.test(name);
-   receipt.push(receiptNewItem(name,price,sku[4]?.toUpperCase()==='A'?'20':'0',coupon));
-   pending='';couponSection=false;continue;
+  if(/^(?:cc\s*£?\s*\d+[.,]\d{2}|clubcard\s*(?:discount|saving)|discount\b)/i.test(line)){
+    const m=line.match(/(-?£?\s*\d+[.,]\d{2})\s*$/);if(m){const n=-Math.abs(val(m[1]));receipt.push(receiptNewItem('Clubcard discount',n,'0',true));}continue;
   }
-  // Generic receipt line with name and a final amount.
-  const generic=line.match(/^(.{2,90}?)\s+(-?£?\s*\d+[.,]\d{2})\s*([AZ])?$/i);
-  if(generic&&!/^\d{3,12}\s/.test(generic[1])){
-   const price=moneyValue(generic[2]),name=generic[1].trim();
-   receipt.push(receiptNewItem(name,price,generic[3]?.toUpperCase()==='A'?'20':'0',price<0||couponSection||/coupon|discount|saving|promo/i.test(name)));
-   pending='';couponSection=false;continue;
-  }
-  if(/[a-z]/i.test(line)&&line.length<85&&!/\d+[.,]\d{2}/.test(line)&&!/^(?:\d+\s|\d{2}:\d{2})/.test(line))pending=line;
+  if(isFooter(line)){pending='';continue}
+  // Costco: preceding product name followed by SKU, quantity, price, total and VAT letter.
+  const sku=line.match(/^\d{3,12}\s+\d+\s*[xX×]\s+-?\d+[.,]\d{2}\s+(-?\d+[.,]\d{2})\s*([AZ])?\s*$/i);
+  if(sku){const n=val(sku[1]),name=pending||'Unidentified product',coupon=n<0||couponSection||/coupon|discount|irc /i.test(name);receipt.push(receiptNewItem(name,n,sku[2]?.toUpperCase()==='A'?'20':'0',coupon));pending='';couponSection=false;continue}
+  // Aldi: product SKU at the start and VAT marker after amount.
+  const aldiLine=line.match(/^\d{4,9}\s+(.{3,80}?)\s+£?\s*(\d+[.,]\d{2})\s*[A-Z]?$/i);
+  if(aldiLine){receipt.push(receiptNewItem(aldiLine[1],val(aldiLine[2])));pending='';continue}
+  // Generic: quantity + item + right-aligned amount, including M&S and Tesco.
+  const generic=line.match(/^(?:(?:\d{5,12})\s+)?(?:\d+\s+)?(.{3,100}?)\s+£\s*(-?\d+[.,]\d{2})\s*[AZ]?$/i)||line.match(/^(?:\d+\s+)?(.{3,100}?)\s{2,}(-?\d+[.,]\d{2})\s*[AZ]?$/i);
+  if(generic){let name=generic[1].trim(),n=val(generic[2]);if(!isFooter(name)&&!/^\d+$/.test(name)&&!/^(?:original price|price reduction|\d+\s*x\s*\d+)/i.test(name)){
+   if(pending&&name.length<18&&/^(?:pints|\d+g|\d+ml)$/i.test(name))name=pending+' '+name;
+   receipt.push(receiptNewItem(name,n,'0',n<0||couponSection));pending='';couponSection=false;continue;
+  }}
+  // A wrapped item description can precede a price-only line.
+  const priceOnly=line.match(/^£\s*(\d+[.,]\d{2})$/);
+  if(priceOnly&&pending){receipt.push(receiptNewItem(pending,val(priceOnly[1])));pending='';continue}
+  if(/[a-z]/i.test(line)&&line.length<100&&!/\d+[.,]\d{2}/.test(line)&&!/^(?:\d{2}[:/]\d{2}|www\.|\d{4,})/i.test(line))pending=line;
  }
- const totalLine=lines.find(x=>/\bTOTAL\s*\(INCL\s*VAT\)/i.test(x))||lines.find(x=>/^(?:\*+\s*)?(?:grand\s+)?total\b(?!.*EXCL)/i.test(x));
- if(totalLine){const matches=totalLine.match(/\d+[.,]\d{2}/g);if(matches)$('receiptTotal').value=matches[matches.length-1].replace(',','.')}
- if(detectedCostco){$('receiptMerchant').value='Costco';$('receiptVatMode').value='exclusive'}
- drawReceipt();$('status').textContent=`Found ${receipt.length} receipt lines (${receipt.filter(i=>!i.coupon).length} products, ${receipt.filter(i=>i.coupon).length} discounts). Verify names, VAT and totals before saving.`;
+ // The original-price and promotion-summary sections are not additional transactions.
+ let totalLine=lines.find(x=>/TOTAL\s*\(INCL\s*VAT\)/i.test(x))||lines.find(x=>/^\*{0,4}\s*TOTAL\s*[:£ ]/i.test(x))||lines.find(x=>/balance to pay/i.test(x))||lines.find(x=>/^\d+\s+BALANCE DUE/i.test(x));
+ if(totalLine){const nums=totalLine.match(/\d+[.,]\d{2}/g);if(nums)$('receiptTotal').value=nums.at(-1).replace(',','.')}
+ const date=full.match(/\b(\d{2})[./-](\d{2})[./-](20\d{2}|\d{2})\b/);if(date){let yr=date[3].length===2?'20'+date[3]:date[3];$('receiptDate').value=`${yr}-${date[2]}-${date[1]}`}
+ if(merchant)$('receiptMerchant').value=merchant;
+ // UK displayed receipt totals normally already include VAT. Never automatically add VAT.
+ $('receiptVatMode').value='inclusive';
+ drawReceipt();const counted=receipt.reduce((n,i)=>n+Number(!i.coupon),0);let {sum}=receiptSummary(),total=Number($('receiptTotal').value)||0;
+ $('status').textContent=`Found ${counted} products and ${receipt.length-counted} discounts. ${total&&Math.abs(sum-total)>.011?'⚠ Incomplete scan: items differ from receipt total by '+money(total-sum)+'. ':''}Verify names, discounts and totals before saving.`;
 }
 $('parseBtn').onclick=parseText;
-let selectedReceiptFile=null;for(const id of ['receiptFile','receiptUpload']){$(id).addEventListener('change',()=>{const file=$(id).files[0];if(!file)return;if(!file.type.startsWith('image/')){$('status').textContent='Please select an image file.';return}selectedReceiptFile=file;const other=id==='receiptFile'?'receiptUpload':'receiptFile';$(other).value='';$('receiptSelected').textContent='Selected: '+file.name; $('status').textContent='Photo ready. Tap Recognise text to scan.';});}$('ocrBtn').onclick=async()=>{let file=selectedReceiptFile;if(!file){alert('Choose a receipt image first');return}let btn=$('ocrBtn');btn.disabled=true;$('status').textContent='Loading OCR engine (internet required)…';try{if(!window.Tesseract){await new Promise((res,rej)=>{let s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';s.onload=res;s.onerror=rej;document.head.append(s)})}let worker=await Tesseract.createWorker('eng');$('status').textContent='Recognising receipt…';let result=await worker.recognize(file);await worker.terminate();$('rawText').value=result.data.text;parseText()}catch(e){$('status').textContent='OCR unavailable. Use manual entry or paste receipt text. '+e.message}finally{btn.disabled=false}};$('saveReceipt').onclick=()=>{let merchant=$('receiptMerchant').value.trim(),date=$('receiptDate').value;if(!merchant||!date||!receipt.length){alert('Enter merchant, date and at least one item');return}if(receipt.some(i=>!i.category||!receiptCategories(i.kind).includes(i.category))){alert('Choose a valid category for every item in its financial group.');return}if(receipt.some(i=>i.price<0&&!i.coupon)){alert('Mark negative prices as coupons / discounts before saving.');return}if(receipt.some(i=>i.coupon&&i.price>0)){alert('Coupons / discounts must have negative prices.');return}let {sum}=receiptSummary(),total=Number($('receiptTotal').value);if(!total||Math.abs(receiptRound(total-sum))>.011){alert(`Receipt total ${money(total)} does not match category total ${money(sum)}. Check VAT, coupons and missing items before saving.`);return}let group=uid();receipt.forEach(i=>{let gross=receiptAmounts(i).gross;db.transactions.push({id:uid(),group,type:i.kind==='income'?'income':'expense',financialGroup:i.kind,merchant:merchant+' · '+i.name,amount:gross,date,category:i.category,payer:$('receiptPayer').value,account:$('receiptAccount').value,receiptVatRate:Number(i.vat),receiptVatMode:$('receiptVatMode').value,receiptCoupon:!!i.coupon})});save();receipt=[];drawReceipt();$('receiptEditor').classList.add('hidden');$('status').textContent='Itemised receipt saved.'};
+async function receiptImageVariants(file){
+ const img=await createImageBitmap(file);const w=img.width,h=img.height;const max=2200,scale=Math.min(2.0,max/Math.max(w,h));const cw=Math.round(w*scale),ch=Math.round(h*scale);
+ const c=document.createElement('canvas');c.width=cw;c.height=ch;const ctx=c.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,cw,ch);ctx.drawImage(img,0,0,cw,ch);img.close?.();
+ const raw=ctx.getImageData(0,0,cw,ch);const pixels=raw.data;
+ // Grayscale with modest local contrast; avoid destructive thresholding on faded thermal paper.
+ for(let i=0;i<pixels.length;i+=4){let g=.299*pixels[i]+.587*pixels[i+1]+.114*pixels[i+2];g=Math.max(0,Math.min(255,(g-128)*1.65+145));pixels[i]=pixels[i+1]=pixels[i+2]=g;}
+ ctx.putImageData(raw,0,0);return c;
+}
+function receiptOCRQuality(text){const lines=text.split(/\n/);let score=0;for(const l of lines){if(/(?:£\s*)?\d+[.,]\d{2}\s*[AZ]?\s*$/i.test(l))score+=3;if(/total|subtotal|balance due/i.test(l))score+=3;if(/tesco|aldi|sainsbury|costco|m&s/i.test(l))score+=4;}return score}
+let selectedReceiptFile=null;for(const id of ['receiptFile','receiptUpload']){$(id).addEventListener('change',()=>{const file=$(id).files[0];if(!file)return;if(!file.type.startsWith('image/')){$('status').textContent='Please select an image file.';return}selectedReceiptFile=file;const other=id==='receiptFile'?'receiptUpload':'receiptFile';$(other).value='';$('receiptSelected').textContent='Selected: '+file.name; $('status').textContent='Photo ready. Tap Recognise text to scan.';});}
+$('ocrBtn').onclick=async()=>{const file=selectedReceiptFile;if(!file){alert('Choose a receipt image first');return}const btn=$('ocrBtn');btn.disabled=true;let worker;try{
+ $('status').textContent='Loading OCR engine (internet required)…';if(!window.Tesseract){await new Promise((res,rej)=>{let s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';s.onload=res;s.onerror=rej;document.head.append(s)})}
+ worker=await Tesseract.createWorker('eng');await worker.setParameters({preserve_interword_spaces:'1'});
+ $('status').textContent='Recognising receipt (first pass)…';const original=await worker.recognize(file);let best=original.data.text;
+ try{$('status').textContent='Enhancing thermal receipt and recognising again…';const canvas=await receiptImageVariants(file);const enhanced=await worker.recognize(canvas);if(receiptOCRQuality(enhanced.data.text)>receiptOCRQuality(best))best=enhanced.data.text;}catch(err){console.warn('Enhanced OCR unavailable',err)}
+ $('rawText').value=best;parseText();
+ }catch(e){$('status').textContent='OCR unavailable. Use manual entry or paste receipt text. '+e.message}finally{if(worker)await worker.terminate().catch(()=>{});btn.disabled=false}};
+$('saveReceipt').onclick=()=>{let merchant=$('receiptMerchant').value.trim(),date=$('receiptDate').value;if(!merchant||!date||!receipt.length){alert('Enter merchant, date and at least one item');return}if(receipt.some(i=>!i.category||!receiptCategories(i.kind).includes(i.category))){alert('Choose a valid category for every item in its financial group.');return}if(receipt.some(i=>i.price<0&&!i.coupon)){alert('Mark negative prices as coupons / discounts before saving.');return}if(receipt.some(i=>i.coupon&&i.price>0)){alert('Coupons / discounts must have negative prices.');return}let {sum}=receiptSummary(),total=Number($('receiptTotal').value);if(!total||Math.abs(receiptRound(total-sum))>.011){alert(`Receipt total ${money(total)} does not match category total ${money(sum)}. Check VAT, coupons and missing items before saving.`);return}let group=uid();receipt.forEach(i=>{let gross=receiptAmounts(i).gross;db.transactions.push({id:uid(),group,type:i.kind==='income'?'income':'expense',financialGroup:i.kind,merchant:merchant+' · '+i.name,amount:gross,date,category:i.category,payer:$('receiptPayer').value,account:$('receiptAccount').value,receiptVatRate:Number(i.vat),receiptVatMode:$('receiptVatMode').value,receiptCoupon:!!i.coupon})});save();receipt=[];drawReceipt();$('receiptEditor').classList.add('hidden');$('status').textContent='Itemised receipt saved.'};
 function download(filename,text,mime){let blob=new Blob([text],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)}$('exportBtn').onclick=()=>download('family-finance-backup.json',JSON.stringify(db,null,2),'application/json');$('csvBtn').onclick=()=>{let cols=['date','type','merchant','amount','currency','category','payer','account'];let rows=[cols.join(','),...db.transactions.map(t=>cols.map(k=>'"'+String(t[k]??'').replace(/"/g,'""')+'"').join(','))];download('family-finance-transactions.csv','\ufeff'+rows.join('\r\n'),'text/csv')};$('importFile').onchange=async e=>{try{let x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.transactions)||!Array.isArray(x.accounts))throw Error('Invalid backup');if(confirm('Replace all local data with this backup?')){if(window.FFPersist?.commit){await FFPersist.wait();await FFPersist.commit(structuredClone(x))}db=x;try{localStorage.setItem(KEY,JSON.stringify(db))}catch(err){console.warn('Backup stored in IndexedDB; local cache unavailable',err)}location.reload()}}catch(err){alert('Could not import backup: '+err.message)}};if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});render();

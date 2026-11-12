@@ -1,1 +1,1 @@
-Family Finance v1.2.27 — Flexible opening/closing balance CSV dates. Select closing or opening mode, dates from CSV per account. Existing snapshots default to closing mode. No private financial data bundled.
+Family Finance v1.2.29 — Receipt OCR update. Two-pass Tesseract with enhanced grayscale thermal receipt; improved generic, Aldi, Tesco, Costco and M&S parsing; receipt total mismatch warning. Browser-only OCR; images not uploaded to app server. Manual review required. No private financial data included.
