@@ -17,13 +17,14 @@
    const group=historical&&['income','recurring','nonrecurring','fixed'].includes(t.comparisonGroup)?t.comparisonGroup:FFMapping.classify(t.category);
    const raw=t.originalSignedAmount??t.sourceAmount;
    const hasSigned=raw!==undefined&&raw!==null&&raw!==''&&Number.isFinite(Number(raw));
-   const signed=hasSigned?Number(raw)*100:null;
-   const n=historical&&hasSigned?Math.abs(signed):cents(t);
-   // Historical Excel uses negative income and signed expenses: FY Net = expenses + signed income.
-   // Ordinary app transactions retain their normal income-minus-expenses Net convention.
-   const expAmount=historical&&hasSigned?signed:(hasSigned?signed:n);
-   const incomeAmount=historical&&hasSigned?-signed:(hasSigned?-signed:n);
-   const netAmount=historical&&hasSigned?signed:(group==='income'?incomeAmount:-expAmount);
+   const signed=hasSigned?Math.round(Number(raw)*100):null;
+   const n=cents(t);
+   // Display convention: income positive, expenses negative. For historical
+   // Comparison data, reverse the signed Excel net without altering storage.
+   // Negative expense adjustments therefore display as positive credits.
+   const incomeAmount=historical&&hasSigned?-signed:n;
+   const expAmount=historical&&hasSigned?-signed:-n;
+   const netAmount=historical&&hasSigned?-signed:(group==='income'?n:-n);
    const key=c+'|'+y;
    if(!data.has(key))data.set(key,zero());const r=data.get(key);
    r.net+=netAmount;
