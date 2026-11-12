@@ -15,7 +15,7 @@ save=function(){render();writeLater().catch(err=>{console.error('Ledger persiste
  const current=db;const saved=stored.data;const ids=new Set(saved.transactions.map(t=>t.id));for(const t of current.transactions||[]){if(!ids.has(t.id)){saved.transactions.push(t);ids.add(t.id)}}
  for(const a of current.accounts||[])if(!saved.accounts.includes(a))saved.accounts.push(a);
  db=saved;for(const t of db.transactions){if(t.category&&!CATS.includes(t.category))CATS.push(t.category)}
- render();localCopy();
+ render();
  }else if(db.transactions.length){await commit(structuredClone(db))}
  ready=true;
  const status=document.getElementById('fullStatus');if(status)status.textContent='Storage ready. Large histories are saved in IndexedDB.';
