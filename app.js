@@ -25,38 +25,38 @@ $('receiptTotal').oninput=reconcile;$('receiptVatMode').onchange=reconcile;$('ad
 // Apple Shortcuts Live Text often emits every product name first and the right-hand
 // price column afterwards. Never guess a product/price association from that layout.
 function parseTescoLiveText(lines){
- const items=[];let started=false,footer=false,discounts=[],last=null;
- const skip=/^(?:tesco\b|mansfield\b|any questions|www\.|vat number|cc\s*[£€$E]?\s*\d|co\s*[£€$E]?\s*\d|£\s*\d+[.,]\d{2}\s*each|[0-9]+\s*items|\d{2}\/\d{2}\/\d{2,4})/i;
+ const items=[];let started=false,footer=false,last=null,loosePrices=[],discounts=[];
  const stop=/^(?:subtotal|savings|promotions|total\s*:|gift\s*c[a-z]*|clubcard points|balance|new giftcard)/i;
+ const moneyToken=/^[-−]?\s*[£€$E]?\s*\d+[.,]\d{2}$/i;
+ const parseMoney=x=>{const n=Number(x.replace(/[^\d.,]/g,'').replace(',','.'));return /^\s*[-−]/.test(x)?-n:n};
+ const skip=/^(?:tesco\b|mansfield\b|any questions|www\.|vat number|cc\s*[£€$E]?\s*\d|co\s*[£€$E]?\s*\d|£\s*\d+[.,]\d{2}\s*each|[0-9]+\s*items|\d{2}\/\d{2}\/\d{2,4})/i;
  for(const line of lines){
   if(stop.test(line)){footer=true;continue}
   if(footer)continue;
-  // Real discounts must be negative; 'Cc £3.50' is a promotional price, not a discount.
-  if(/^[-−]\s*[£€$E]?\s*\d+[.,]\d{2}$/.test(line)){
-   const amount=Number(line.replace(/[^\d.,]/g,'').replace(',','.'));
-   if(amount>0&&amount<100)discounts.push(-amount);
+  if(moneyToken.test(line)){
+   const n=parseMoney(line);if(n<0)discounts.push(n);else loosePrices.push(n);
    continue;
   }
-  const m=line.match(/^(\d+)\s+(?:(Tesco|Coca\s+Cola|JS|Sainsbury)[\s\S]*|[A-Za-z][\s\S]{5,})$/i);
+  const m=line.match(/^(\d+)\s+([A-Za-z][\s\S]{5,})$/i);
   if(m&&!skip.test(line)){
    const qty=Number(m[1]);if(qty>0&&qty<=30){
-    const raw=line.replace(/^\d+\s+/,'').trim();
-    // A trailing price is safe only when present on the SAME product line.
-    const amount=raw.match(/\s+[£]\s*(\d+[.,]\d{2})\s*$/);
+    const raw=m[2].trim();const amount=raw.match(/\s+[£]\s*(\d+[.,]\d{2})\s*$/);
     const name=amount?raw.slice(0,amount.index).trim():raw;
     last=receiptNewItem(name,amount?Number(amount[1].replace(',','.')):0);
-    last.quantity=qty;last.priceUnverified=!amount;
-    items.push(last);started=true;continue;
+    last.quantity=qty;last.priceUnverified=!amount;items.push(last);started=true;continue;
    }
   }
-  if(started&&last&&/^(?:vanilla|\d+g\b|\d+ml\b|\d+\s*pints?\b|pints?\b|\d+\s*pack\b)/i.test(line)){
-   last.name+=' '+line;
-  }
+  if(started&&last&&/^(?:vanilla|\d+g\b|\d+ml\b|\d+\s*pints?\b|pints?\b|\d+\s*pack\b)/i.test(line))last.name+=' '+line;
  }
- // When discounts appear in the separate price column, preserve them as separate
- // reviewable lines without inventing which product they belong to.
+ // Only match a detached price column when the count is EXACTLY the number of
+ // missing prices. Otherwise leave zeros for manual verification: never guess.
+ const missing=items.filter(i=>i.priceUnverified);
+ let matched=false;
+ if(missing.length>0&&loosePrices.length===missing.length){
+  missing.forEach((item,i)=>{item.price=loosePrices[i];item.priceUnverified=false});matched=true;
+ }
  for(const n of discounts)items.push(receiptNewItem('Tesco Clubcard discount — verify product',n,'0',true));
- return {items,discounts:discounts.length};
+ return {items,discounts:discounts.length,matched,unmatched:missing.filter(i=>i.priceUnverified).length,loosePrices:loosePrices.length};
 }
 function parseText(){
  const lines=$('rawText').value.split(/\r?\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);
@@ -70,7 +70,7 @@ function parseText(){
   $('receiptMerchant').value='Tesco';$('receiptTotal').value='';$('receiptDate').value='';$('receiptVatMode').value='inclusive';
   const validDate=lines.join(' ').match(/\b([0-3]\d)[.\/-]([01]\d)[.\/-](20\d{2}|\d{2})\b/);
   if(validDate){const year=validDate[3].length===2?'20'+validDate[3]:validDate[3];const candidate=year+'-'+validDate[2]+'-'+validDate[1];if(!Number.isNaN(Date.parse(candidate))&&Number(year)>=2020&&Number(year)<=new Date().getFullYear()+1)$('receiptDate').value=candidate}
-  drawReceipt();$('status').textContent='Apple Live Text: '+receipt.filter(i=>!i.coupon).length+' products, '+parsed.discounts+' discounts. ⚠ Prices in a separate OCR column cannot be safely matched to products. Enter/verify each item price, receipt date and total before saving.';return;
+  drawReceipt();$('status').textContent='Apple Live Text: '+receipt.filter(i=>!i.coupon).length+' products, '+parsed.discounts+' discounts. '+(parsed.matched?'Detached price column matched by item order — verify each price against receipt. ':'')+(parsed.unmatched?'⚠ '+parsed.unmatched+' prices still need manual entry; '+parsed.loosePrices+' detached price values found. ':'')+'Enter/verify receipt total and date before saving.';return;
  }
  const val=x=>Number(String(x).replace(/[£,\s]/g,''));
  const isFooter=x=>/^(?:\*+|total\b|subtotal\b|savings\b|promotions\b|balance\b|change\b|card\b|gift\s*card\b|new balance|clubcard points|nectar|points\b|cash\b|payment\b|vat\b|tax\b|net\b|items\b|card sales|goods\b|authori|terminal|merchant id|eft no|contactless|source\b|approved|thank you|please|your account|customer copy|verification|date\b|receipt\b|individual|copy of|reg\. in|awrs|mastercard|visa|smartshop|store\b|checkout\b|original price|price reduction|\d+\s*items\b|\d+\s*x\s*\d+\s*for\s*\d+)/i.test(x);

@@ -44,3 +44,8 @@ Income classification is restricted to Cash Rebate, Avery, Valerie, Interest, Sa
 
 
 v1.2.30: Conservative Apple Shortcuts Live Text Tesco parser. Split-column OCR preserves product names and negative discounts but intentionally leaves prices, dates, and totals unverified when unreliable. Verify every line manually before saving. No cloud OCR or API.
+
+## v1.2.32
+- Tesco Apple Live Text detached-price matching only when the number of positive standalone prices exactly matches the number of products missing prices. Otherwise prices remain unverified (zero) and saving is blocked.
+- Discounts stay separate negative entries; receipt total must be entered and reconcile before save.
+- No personal finance data is bundled. Category selections use the locally imported Comparison category profile.
