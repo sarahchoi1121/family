@@ -16,7 +16,7 @@
   const same=(a,b)=>window.FFAccounts?FFAccounts.equal(a,b):key(a)===key(b);
   function movement(name,start,end){
     let sum=0,count=0,skipped=0;
-    for(const t of db.transactions){
+    for(const t of db.transactions){if(t.comparisonMonthly)continue;
       if(!validDate(t.date)||t.date<=start||t.date>end)continue;
       const source=same(t.account,name),destination=t.type==='transfer'&&t.transferTo&&same(t.transferTo,name);
       if(!source&&!destination)continue;

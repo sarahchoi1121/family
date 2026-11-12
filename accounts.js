@@ -13,7 +13,7 @@
     const group=groups().find(g=>g.label===name)||{snapshotKey:name};const snapshot=db.accountSnapshots[group.snapshotKey];
     if(!snapshot || !/^\d{4}-\d{2}-\d{2}$/.test(snapshot.date) || !Number.isFinite(Number(snapshot.amount)))return null;
     let result=cents(snapshot.amount);
-    for(const t of db.transactions){
+    for(const t of db.transactions){if(t.comparisonMonthly)continue;
       if(!t.date || t.date<=snapshot.date)continue;
       if(t.type!=='transfer' && (window.FFCurrency?FFCurrency.currency(t):(t.currency||'GBP'))!==accountCurrency(name))continue;
       if(t.type==='transfer' && t.transferTo){
