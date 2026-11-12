@@ -22,17 +22,62 @@ function receiptSummary(){const totals=new Map();let sum=0,vat=0;for(const i of 
 function drawReceipt(){let host=$('receiptItems');host.replaceChildren();receipt.forEach((item,i)=>{let wrap=document.createElement('div');wrap.className='receipt-item';let name=document.createElement('input');name.value=item.name;name.placeholder='Item name';name.oninput=()=>{item.name=name.value};let row=document.createElement('div');row.className='grid2';let price=document.createElement('input');price.type='number';price.step='0.01';price.value=item.price;price.setAttribute('aria-label','Item price');price.oninput=()=>{item.price=Number(price.value)||0;reconcile()};let vat=document.createElement('select');[['0','VAT 0%'],['5','VAT 5%'],['20','VAT 20%']].forEach(([v,l])=>vat.add(new Option(l,v)));vat.value=item.vat||'0';vat.onchange=()=>{item.vat=vat.value;reconcile()};let group=document.createElement('select');RECEIPT_GROUPS.forEach(([v,l])=>group.add(new Option(l,v)));group.value=item.kind;let cat=document.createElement('select');function fillCats(){let cats=receiptCategories(item.kind);cat.replaceChildren(...cats.map(c=>new Option(c,c)));if(cats.includes(item.category))cat.value=item.category;else item.category=cat.value||'';if(!cats.length){cat.add(new Option('No active categories — add in Settings',''));item.category=''}}fillCats();group.onchange=()=>{item.kind=group.value;item.category='';fillCats();reconcile()};cat.onchange=()=>{item.category=cat.value;if(item.name.trim())db.rules[item.name.toLowerCase().trim()]=cat.value;reconcile()};let discount=document.createElement('label');discount.style.cssText='display:flex;gap:7px;align-items:center;font-size:12px;margin:8px 0';let check=document.createElement('input');check.type='checkbox';check.checked=!!item.coupon;check.style.width='auto';check.onchange=()=>{item.coupon=check.checked;reconcile()};discount.append(check,document.createTextNode('Coupon / discount (negative price)'));let del=document.createElement('button');del.className='danger';del.textContent='Remove';del.style.marginTop='8px';del.onclick=()=>{receipt.splice(i,1);drawReceipt()};let label=document.createElement('div');label.className='muted';label.style.marginTop='5px';label.textContent='Price · VAT';let second=document.createElement('div');second.className='grid2';second.append(group,cat);let label2=document.createElement('div');label2.className='muted';label2.style.marginTop='8px';label2.textContent='Financial group · Category';row.append(price,vat);wrap.append(name,label,row,label2,second,discount,del);host.append(wrap)});$('receiptEditor').classList.remove('hidden');reconcile()}
 function reconcile(){const {sum,vat}=receiptSummary(),total=Number($('receiptTotal').value)||0,diff=receiptRound(total-sum);$('itemsSum').textContent=money(sum);$('receiptVatSum').textContent=money(vat);$('receiptDifference').textContent=money(diff);$('reconcile').textContent=total?Math.abs(diff)<.011?'✓ Category total matches receipt total':`⚠ Difference: ${money(diff)}. Review VAT mode, coupons, missing items and receipt total.`:'Enter receipt total to verify.'}
 $('receiptTotal').oninput=reconcile;$('receiptVatMode').onchange=reconcile;$('addItem').onclick=()=>addReceiptItem();$('manualBtn').onclick=()=>{receipt=[];addReceiptItem()};
+// Apple Shortcuts Live Text often emits every product name first and the right-hand
+// price column afterwards. Never guess a product/price association from that layout.
+function parseTescoLiveText(lines){
+ const items=[];let started=false,footer=false,discounts=[],last=null;
+ const skip=/^(?:tesco\b|mansfield\b|any questions|www\.|vat number|cc\s*[£€$E]?\s*\d|co\s*[£€$E]?\s*\d|£\s*\d+[.,]\d{2}\s*each|[0-9]+\s*items|\d{2}\/\d{2}\/\d{2,4})/i;
+ const stop=/^(?:subtotal|savings|promotions|total\s*:|gift\s*c[a-z]*|clubcard points|balance|new giftcard)/i;
+ for(const line of lines){
+  if(stop.test(line)){footer=true;continue}
+  if(footer)continue;
+  // Real discounts must be negative; 'Cc £3.50' is a promotional price, not a discount.
+  if(/^[-−]\s*[£€$E]?\s*\d+[.,]\d{2}$/.test(line)){
+   const amount=Number(line.replace(/[^\d.,]/g,'').replace(',','.'));
+   if(amount>0&&amount<100)discounts.push(-amount);
+   continue;
+  }
+  const m=line.match(/^(\d+)\s+(?:(Tesco|Coca\s+Cola|JS|Sainsbury)[\s\S]*|[A-Za-z][\s\S]{5,})$/i);
+  if(m&&!skip.test(line)){
+   const qty=Number(m[1]);if(qty>0&&qty<=30){
+    const raw=line.replace(/^\d+\s+/,'').trim();
+    // A trailing price is safe only when present on the SAME product line.
+    const amount=raw.match(/\s+[£]\s*(\d+[.,]\d{2})\s*$/);
+    const name=amount?raw.slice(0,amount.index).trim():raw;
+    last=receiptNewItem(name,amount?Number(amount[1].replace(',','.')):0);
+    last.quantity=qty;last.priceUnverified=!amount;
+    items.push(last);started=true;continue;
+   }
+  }
+  if(started&&last&&/^(?:vanilla|\d+g\b|\d+ml\b|\d+\s*pints?\b|pints?\b|\d+\s*pack\b)/i.test(line)){
+   last.name+=' '+line;
+  }
+ }
+ // When discounts appear in the separate price column, preserve them as separate
+ // reviewable lines without inventing which product they belong to.
+ for(const n of discounts)items.push(receiptNewItem('Tesco Clubcard discount — verify product',n,'0',true));
+ return {items,discounts:discounts.length};
+}
 function parseText(){
  const lines=$('rawText').value.split(/\r?\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);
  receipt=[];let pending='',couponSection=false,merchant='',discounts=[];
  const full=lines.join(' '),costco=/warehouse\s*receipt|costco/i.test(full),tesco=/tesco/i.test(full),aldi=/aldi\s*stores/i.test(full),sainsbury=/sainsbury/i.test(full),marks=/marksandspencer|m&s/i.test(full);
  merchant=costco?'Costco':tesco?'Tesco':aldi?'Aldi':sainsbury?"Sainsbury's":marks?'M&S':'';
+ // Live Text column-split Tesco receipts require a separate, conservative parser.
+ const tescoColumnSplit=tesco&&lines.filter(x=>/^\d+\s+(?:Tesco|Coca Cola)/i.test(x)).length>=3&&lines.filter(x=>/^[-−]?\s*[£€$E]?\s*\d+[.,]\d{2}\s*$/.test(x)).length>=2;
+ if(tescoColumnSplit){
+  const parsed=parseTescoLiveText(lines);receipt=parsed.items;
+  $('receiptMerchant').value='Tesco';$('receiptTotal').value='';$('receiptDate').value='';$('receiptVatMode').value='inclusive';
+  const validDate=lines.join(' ').match(/\b([0-3]\d)[.\/-]([01]\d)[.\/-](20\d{2}|\d{2})\b/);
+  if(validDate){const year=validDate[3].length===2?'20'+validDate[3]:validDate[3];const candidate=year+'-'+validDate[2]+'-'+validDate[1];if(!Number.isNaN(Date.parse(candidate))&&Number(year)>=2020&&Number(year)<=new Date().getFullYear()+1)$('receiptDate').value=candidate}
+  drawReceipt();$('status').textContent='Apple Live Text: '+receipt.filter(i=>!i.coupon).length+' products, '+parsed.discounts+' discounts. ⚠ Prices in a separate OCR column cannot be safely matched to products. Enter/verify each item price, receipt date and total before saving.';return;
+ }
  const val=x=>Number(String(x).replace(/[£,\s]/g,''));
  const isFooter=x=>/^(?:\*+|total\b|subtotal\b|savings\b|promotions\b|balance\b|change\b|card\b|gift\s*card\b|new balance|clubcard points|nectar|points\b|cash\b|payment\b|vat\b|tax\b|net\b|items\b|card sales|goods\b|authori|terminal|merchant id|eft no|contactless|source\b|approved|thank you|please|your account|customer copy|verification|date\b|receipt\b|individual|copy of|reg\. in|awrs|mastercard|visa|smartshop|store\b|checkout\b|original price|price reduction|\d+\s*items\b|\d+\s*x\s*\d+\s*for\s*\d+)/i.test(x);
  for(let k=0;k<lines.length;k++){
   const line=lines[k];
   if(/^coupon\s*$/i.test(line)){couponSection=true;continue}
-  if(/^(?:cc\s*£?\s*\d+[.,]\d{2}|clubcard\s*(?:discount|saving)|discount\b)/i.test(line)){
+  if(/^(?:clubcard\s*(?:discount|saving)|discount\b)/i.test(line)){ 
     const m=line.match(/(-?£?\s*\d+[.,]\d{2})\s*$/);if(m){const n=-Math.abs(val(m[1]));receipt.push(receiptNewItem('Clubcard discount',n,'0',true));}continue;
   }
   if(isFooter(line)){pending='';continue}
@@ -81,5 +126,5 @@ $('ocrBtn').onclick=async()=>{const file=selectedReceiptFile;if(!file){alert('Ch
  try{$('status').textContent='Enhancing thermal receipt and recognising again…';const canvas=await receiptImageVariants(file);const enhanced=await worker.recognize(canvas);if(receiptOCRQuality(enhanced.data.text)>receiptOCRQuality(best))best=enhanced.data.text;}catch(err){console.warn('Enhanced OCR unavailable',err)}
  $('rawText').value=best;parseText();
  }catch(e){$('status').textContent='OCR unavailable. Use manual entry or paste receipt text. '+e.message}finally{if(worker)await worker.terminate().catch(()=>{});btn.disabled=false}};
-$('saveReceipt').onclick=()=>{let merchant=$('receiptMerchant').value.trim(),date=$('receiptDate').value;if(!merchant||!date||!receipt.length){alert('Enter merchant, date and at least one item');return}if(receipt.some(i=>!i.category||!receiptCategories(i.kind).includes(i.category))){alert('Choose a valid category for every item in its financial group.');return}if(receipt.some(i=>i.price<0&&!i.coupon)){alert('Mark negative prices as coupons / discounts before saving.');return}if(receipt.some(i=>i.coupon&&i.price>0)){alert('Coupons / discounts must have negative prices.');return}let {sum}=receiptSummary(),total=Number($('receiptTotal').value);if(!total||Math.abs(receiptRound(total-sum))>.011){alert(`Receipt total ${money(total)} does not match category total ${money(sum)}. Check VAT, coupons and missing items before saving.`);return}let group=uid();receipt.forEach(i=>{let gross=receiptAmounts(i).gross;db.transactions.push({id:uid(),group,type:i.kind==='income'?'income':'expense',financialGroup:i.kind,merchant:merchant+' · '+i.name,amount:gross,date,category:i.category,payer:$('receiptPayer').value,account:$('receiptAccount').value,receiptVatRate:Number(i.vat),receiptVatMode:$('receiptVatMode').value,receiptCoupon:!!i.coupon})});save();receipt=[];drawReceipt();$('receiptEditor').classList.add('hidden');$('status').textContent='Itemised receipt saved.'};
+$('saveReceipt').onclick=()=>{let merchant=$('receiptMerchant').value.trim(),date=$('receiptDate').value;if(!merchant||!date||!receipt.length){alert('Enter merchant, date and at least one item');return}if(receipt.some(i=>!i.category||!receiptCategories(i.kind).includes(i.category))){alert('Choose a valid category for every item in its financial group.');return}if(receipt.some(i=>!Number.isFinite(i.price)||i.price===0)){alert('Verify and enter every item price before saving.');return}if(receipt.some(i=>i.price<0&&!i.coupon)){alert('Mark negative prices as coupons / discounts before saving.');return}if(receipt.some(i=>i.coupon&&i.price>0)){alert('Coupons / discounts must have negative prices.');return}let {sum}=receiptSummary(),total=Number($('receiptTotal').value);if(!total||Math.abs(receiptRound(total-sum))>.011){alert(`Receipt total ${money(total)} does not match category total ${money(sum)}. Check VAT, coupons and missing items before saving.`);return}let group=uid();receipt.forEach(i=>{let gross=receiptAmounts(i).gross;db.transactions.push({id:uid(),group,type:i.kind==='income'?'income':'expense',financialGroup:i.kind,merchant:merchant+' · '+i.name,amount:gross,date,category:i.category,payer:$('receiptPayer').value,account:$('receiptAccount').value,receiptVatRate:Number(i.vat),receiptVatMode:$('receiptVatMode').value,receiptCoupon:!!i.coupon})});save();receipt=[];drawReceipt();$('receiptEditor').classList.add('hidden');$('status').textContent='Itemised receipt saved.'};
 function download(filename,text,mime){let blob=new Blob([text],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)}$('exportBtn').onclick=()=>download('family-finance-backup.json',JSON.stringify(db,null,2),'application/json');$('csvBtn').onclick=()=>{let cols=['date','type','merchant','amount','currency','category','payer','account'];let rows=[cols.join(','),...db.transactions.map(t=>cols.map(k=>'"'+String(t[k]??'').replace(/"/g,'""')+'"').join(','))];download('family-finance-transactions.csv','\ufeff'+rows.join('\r\n'),'text/csv')};$('importFile').onchange=async e=>{try{let x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.transactions)||!Array.isArray(x.accounts))throw Error('Invalid backup');if(confirm('Replace all local data with this backup?')){if(window.FFPersist?.commit){await FFPersist.wait();await FFPersist.commit(structuredClone(x))}db=x;try{localStorage.setItem(KEY,JSON.stringify(db))}catch(err){console.warn('Backup stored in IndexedDB; local cache unavailable',err)}location.reload()}}catch(err){alert('Could not import backup: '+err.message)}};if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});render();
