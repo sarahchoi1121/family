@@ -1,50 +1,68 @@
-/* Year comparisons: strict currency partitioning, no FX conversion. */
+/* Expandable, currency-separated financial summary. No FX conversion. */
 (()=>{'use strict';
- const $=id=>document.getElementById(id),from=$('compareFromMonth'),to=$('compareToMonth'),metric=$('compareMetric'),catMetric=$('compareCategoryMetric'),hide=$('compareHideZero'),currencySel=$('compareCurrency');
- const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
- for(let i=1;i<=12;i++){from.add(new Option(months[i-1],String(i)));to.add(new Option(months[i-1],String(i)))}from.value='1';to.value='12';
- const fmt=(n,c)=>FFCurrency.format(n/100,c),cents=t=>Math.round(Math.abs(Number(t.amount||0))*100)||0;
- const zero=()=>({income:0,expense:0,recurring:0,nonrecurring:0,fixed:0,net:0});
- const val=(r,k)=>r?.[k]||0;
- const years=()=>[...new Set(db.transactions.map(t=>String(t.date||'').slice(0,4)).filter(x=>/^20\d{2}$/.test(x)))].sort();
- function draw(){
-  const old=currencySel.value,all=[...new Set(db.transactions.map(FFCurrency.currency))].sort();currencySel.replaceChildren(new Option('All currencies (separate totals)','ALL'),...all.map(c=>new Option(c,c)));currencySel.value=all.includes(old)?old:'ALL';
-  const a=+from.value,b=+to.value,ys=years();if(a>b){$('yearBars').textContent='Start month must not be after end month.';$('categoryComparison').textContent='Choose a valid month range.';return}
-  const tx=db.transactions.filter(t=>/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')&&+t.date.slice(5,7)>=a&&+t.date.slice(5,7)<=b&&t.type!=='transfer'&&(currencySel.value==='ALL'||FFCurrency.currency(t)===currencySel.value));
-  const currencies=[...new Set(tx.map(FFCurrency.currency))].sort(), data=new Map(),cats=new Map();
+ const $=id=>document.getElementById(id), mode=$('summaryMode'),year=$('summaryYear'),month=$('summaryMonth'),currency=$('summaryCurrency'),output=$('compareFourSummary');
+ const labels=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+ const groups=[['Income','income'],['Recurring','recurring'],['Non-recurring','nonrecurring'],['Fixed assets','fixed']];
+ const fmt=(n,c)=>FFCurrency.format(n/100,c),esc=s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+ const closed=new Set();let signature='',lastData=null;
+ const get=(m,k)=>m.get(k)||0;
+ function build(){
+  const tx=db.transactions||[],sig=tx.length+'|'+tx.map(t=>[t.id,t.amount,t.date,t.category,t.type,t.currency,t.comparisonGroup,t.originalSignedAmount].join(':')).join('|');
+  if(sig===signature&&lastData)return lastData;
+  const records=[],years=new Set(),currencies=new Set();
   for(const t of tx){
-   const c=FFCurrency.currency(t),y=t.date.slice(0,4),historical=t.comparisonMonthly===true;
-   const group=historical&&['income','recurring','nonrecurring','fixed'].includes(t.comparisonGroup)?t.comparisonGroup:FFMapping.classify(t.category);
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')||t.type==='transfer')continue;
+   const c=FFCurrency.currency(t),y=t.date.slice(0,4),m=+t.date.slice(5,7),historical=t.comparisonMonthly===true;
+   const g=historical&&['income','recurring','nonrecurring','fixed'].includes(t.comparisonGroup)?t.comparisonGroup:FFMapping.classify(t.category);
+   if(!['income','recurring','nonrecurring','fixed'].includes(g))continue;
    const raw=t.originalSignedAmount??t.sourceAmount;
-   const hasSigned=raw!==undefined&&raw!==null&&raw!==''&&Number.isFinite(Number(raw));
-   const signed=hasSigned?Math.round(Number(raw)*100):null;
-   const n=cents(t);
-   // Display convention: income positive, expenses negative. For historical
-   // Comparison data, reverse the signed Excel net without altering storage.
-   // Negative expense adjustments therefore display as positive credits.
-   const incomeAmount=historical&&hasSigned?-signed:n;
-   const expAmount=historical&&hasSigned?-signed:-n;
-   const netAmount=historical&&hasSigned?-signed:(group==='income'?n:-n);
-   const key=c+'|'+y;
-   if(!data.has(key))data.set(key,zero());const r=data.get(key);
-   r.net+=netAmount;
-   if(group==='income')r.income+=incomeAmount;
-   else{r.expense+=expAmount;r[group]+=expAmount}
-   const name=String(t.category||'Uncategorised').trim()||'Uncategorised',k=c+'|'+FFMapping.norm(name)+'|'+group;
-   if(!cats.has(k))cats.set(k,{name,c,group,vals:new Map()});const cat=cats.get(k);
-   if(!cat.vals.has(y))cat.vals.set(y,zero());const v=cat.vals.get(y);
-   v.net+=netAmount;
-   if(group==='income')v.income+=incomeAmount;else{v.expense+=expAmount;v[group]+=expAmount}
+   const hasSigned=historical&&raw!==undefined&&raw!==null&&raw!==''&&Number.isFinite(Number(raw));
+   const n=Math.round(Math.abs(Number(t.amount||0))*100)||0;
+   const signed=hasSigned?-Math.round(Number(raw)*100):(g==='income'?n:-n);
+   const name=String(t.category||'Uncategorised').trim()||'Uncategorised';
+   records.push({c,y,m,g,name,signed});years.add(y);currencies.add(c);
   }
-
-  const groups=[['Income','income'],['Recurring','recurring'],['Non-recurring','nonrecurring'],['Fixed assets','fixed']];
-  const head=ys.map(y=>`<th scope="col">${y}</th>`).join('');
-  $('compareFourSummary').innerHTML=currencies.length?currencies.map(c=>`<h3>${c}</h3><table class="compare-table"><thead><tr><th>Group</th>${head}</tr></thead><tbody>${groups.map(([name,k])=>`<tr><td>${name}</td>${ys.map(y=>`<td>${fmt(val(data.get(c+'|'+y),k),c)}</td>`).join('')}</tr>`).join('')}<tr class="net-summary-row"><th scope="row">Net</th>${ys.map(y=>{const r=data.get(c+'|'+y);const net=val(r,'net');return `<td class="${net<0?'net-negative':net>0?'net-positive':'net-zero'}"><strong>${fmt(net,c)}</strong></td>`}).join('')}</tr></tbody></table>`).join(''):'<p class="notice">No transactions for selected period and currency.</p>';
-  const mode=metric.value;let bars='';for(const c of currencies){const values=ys.map(y=>({y,n:val(data.get(c+'|'+y),mode)})),max=Math.max(1,...values.map(x=>Math.abs(x.n)));bars+=`<h3>${c}</h3>`+values.map(x=>`<div class="compare-line"><small>${x.y}</small><div class="compare-bar-track"><div class="compare-bar-fill" style="width:${(Math.abs(x.n)/max*100).toFixed(1)}%"></div></div><strong>${fmt(x.n,c)}</strong></div>`).join('')}$('yearBars').innerHTML=bars||'<p class="notice">No dated transactions for this currency.</p>';
-  const cm=catMetric.value;let tables='';for(const c of currencies){const rows=[...cats.values()].filter(x=>x.c===c&&(!hide.checked||ys.some(y=>val(x.vals.get(y),cm)!==0))&&(cm==='income'?x.group==='income':cm==='expense'?x.group!=='income':x.group===cm)).sort((x,y)=>x.name.localeCompare(y.name,'en-GB'));
-   const body=rows.map(x=>`<tr><td>${escapeHtml(x.name)}</td>${ys.map(y=>`<td>${fmt(val(x.vals.get(y),cm),c)}</td>`).join('')}</tr>`).join('');
-   tables+=`<h3>${c}</h3><table class="compare-table"><thead><tr><th>Category</th>${head}</tr></thead><tbody>${body||`<tr><td colspan="${ys.length+1}">No matching categories</td></tr>`}<tr><td><strong>Total</strong></td>${ys.map(y=>`<td><strong>${fmt(val(data.get(c+'|'+y),cm),c)}</strong></td>`).join('')}</tr></tbody></table>`
-  }$('categoryComparison').innerHTML=tables||'<p class="notice">No matching transactions.</p>';
+  lastData={records,years:[...years].sort(),currencies:[...currencies].sort()};signature=sig;return lastData;
  }
- [from,to,metric,catMetric,hide,currencySel].forEach(el=>el.addEventListener('change',draw));const prev=render;render=function(){prev();if(!$('compare').classList.contains('hidden'))draw()};draw();
+ function draw(){
+  const {records,years,currencies}=build();
+  const prevYear=year.value,prevCurrency=currency.value;
+  year.replaceChildren(...years.map(y=>new Option(y,y)));year.value=years.includes(prevYear)?prevYear:(years.at(-1)||'');
+  if(!month.options.length)labels.forEach((label,i)=>month.add(new Option(label,String(i+1))));
+  if(!month.value)month.value='1';
+  currency.replaceChildren(new Option('All currencies (separate tables)','ALL'),...currencies.map(c=>new Option(c,c)));currency.value=currencies.includes(prevCurrency)?prevCurrency:'ALL';
+  $('summaryYearWrap').hidden=mode.value!=='year';$('summaryMonthWrap').hidden=mode.value!=='month';
+  const cols=mode.value==='year'?labels.map((l,i)=>({key:String(i+1),label:l})).concat([{key:'total',label:'Total'}]):years.map(y=>({key:y,label:y}));
+  const visible=currency.value==='ALL'?currencies:[currency.value];
+  const selected=records.filter(r=>mode.value==='year'?r.y===year.value:mode.value==='month'?r.m===+month.value:true);
+  const colKey=r=>mode.value==='year'?String(r.m):r.y;
+
+  let html='';
+  for(const c of visible){
+   const rows=selected.filter(r=>r.c===c),data=new Map(),cats=new Map();
+   for(const r of rows){
+    const k=colKey(r),gkey=r.g+'|'+k;
+    data.set(gkey,get(data,gkey)+r.signed);data.set('net|'+k,get(data,'net|'+k)+r.signed);
+    data.set(r.g+'|total',get(data,r.g+'|total')+r.signed);data.set('net|total',get(data,'net|total')+r.signed);
+    const id=r.g+'|'+r.name.toLocaleLowerCase('en-GB');if(!cats.has(id))cats.set(id,{group:r.g,name:r.name,values:new Map()});
+    const vals=cats.get(id).values;vals.set(k,get(vals,k)+r.signed);vals.set('total',get(vals,'total')+r.signed);
+   }
+   const header=cols.map(x=>`<th scope="col">${esc(x.label)}</th>`).join('');
+   let body='';
+   for(const [name,g] of groups){
+    const key=c+'|'+g,open=!closed.has(key);
+    body+=`<tr class="summary-group-row"><th scope="row"><button type="button" class="summary-expand" data-expand="${esc(key)}" aria-expanded="${open}">${open?'▾':'▸'} ${esc(name)}</button></th>${cols.map(x=>`<td>${fmt(get(data,g+'|'+x.key),c)}</td>`).join('')}</tr>`;
+    if(open){const entries=[...cats.values()].filter(x=>x.group===g).sort((a,b)=>a.name.localeCompare(b.name,'en-GB'));
+     body+=entries.map(cat=>`<tr class="summary-category"><td>${esc(cat.name)}</td>${cols.map(x=>`<td>${fmt(get(cat.values,x.key),c)}</td>`).join('')}</tr>`).join('');}
+   }
+   body+=`<tr class="net-summary-row"><th scope="row">Net</th>${cols.map(x=>{const n=get(data,'net|'+x.key);return `<td class="${n<0?'net-negative':n>0?'net-positive':'net-zero'}"><strong>${fmt(n,c)}</strong></td>`}).join('')}</tr>`;
+   html+=`<h3>${esc(c)}</h3><div class="summary-scroll"><table class="compare-table"><thead><tr><th scope="col">Group / Category</th>${header}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+  output.innerHTML=html||'<p class="notice">No transactions available for this selection.</p>';
+ }
+ output.addEventListener('click',e=>{const btn=e.target.closest('[data-expand]');if(!btn)return;const k=btn.dataset.expand;if(closed.has(k))closed.delete(k);else closed.add(k);draw()});
+ function renderSummary(){draw()}
+ [mode,year,month,currency].forEach(el=>el.addEventListener('change',renderSummary));
+ const prev=render;render=function(){prev();if(!$('compare').classList.contains('hidden'))renderSummary()};
+ renderSummary();
 })();
