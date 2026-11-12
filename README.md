@@ -1,4 +1,4 @@
-Family Finance v1.2.18 — Compare display sign update. Based on v1.2.17.
-Income displays positive; expense groups display negative; historical Comparison Net sign reversed.
-No changes to imported data, IndexedDB, settings, reconciliation, or account logic.
-Upload only public app files to GitHub. Do not upload private JSON.
+Family Finance v1.2.20 — Opening Balance CSV import and collapsible Compare panels.
+PUBLIC source only. No financial data included.
+CSV columns: Account,Currency,Balance,Date. Date must be 2026-11-01. Opening balances are as of END of day. Transactions after that date count toward reconciliation.
+Export a backup before updating. Upload all files to GitHub Pages.
