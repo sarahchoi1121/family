@@ -7,3 +7,6 @@ Camera hotfix v1.2.21: restores missing receiptUpload and receiptSelected elemen
 
 
 v1.2.22 Receipt review: group-dependent categories from private local profile; Costco VAT inclusive/exclusive switch and A/Z rate parsing; coupon lines; category-only summary; strict receipt total reconciliation. No private financial data included.
+
+
+v1.2.23: Costco OCR parser pairs product names with following SKU/quantity/price/VAT rows, detects coupons and receipt inclusive VAT total, defaults Costco prices to VAT-exclusive.
