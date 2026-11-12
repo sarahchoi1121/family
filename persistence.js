@@ -8,7 +8,7 @@ const originalSave=save;
 function localCopy(){try{localStorage.setItem(KEY,JSON.stringify(db));return true}catch(e){console.warn('Local storage capacity exceeded; ledger retained in IndexedDB',e);return false}}
 function writeLater(){const snapshot=structuredClone(db);queue=queue.catch(()=>{}).then(()=>commit(snapshot));return queue}
 window.FFPersist={get ready(){return ready},wait:()=>queue,read,commit,localCopy,
- async importWorkbook(next,archive){await queue;await commit(next,archive);db=next;localCopy();render();return true}};
+ async importWorkbook(next,archive,progress){await queue;if(progress)progress('Writing ledger to IndexedDB…');await commit(next,archive);db=next;/* Large imports must not synchronously stringify into localStorage or render thousands of rows. IndexedDB is canonical. */return true}};
 save=function(){render();writeLater().catch(err=>{console.error('Ledger persistence failed',err);alert('Could not save data: '+err.message+'. Keep your backup and do not close this page.')});localCopy()};
 (async()=>{try{const stored=await read('ledger','current');if(stored?.data&&Array.isArray(stored.data.transactions)){
  // IndexedDB is canonical after a large import; retain local-only transactions if their IDs are absent.
