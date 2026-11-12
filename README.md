@@ -1,1 +1,1 @@
-Family Finance v1.2.9 — Bank balances and reconciliation combined into one horizontal account list. Public code only; no private financial records.\n
+Family Finance v1.2.10 — Move Add Account into Bank balances; remove standalone Payment accounts section. No private data included.
