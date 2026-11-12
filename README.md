@@ -1,1 +1,1 @@
-Family Finance v1.2.8: compact bank accounts, gift card merchant wallet, manual cash denominations. PUBLIC CODE ONLY. Backup before deploying.
+Family Finance v1.2.9 — Bank balances and reconciliation combined into one horizontal account list. Public code only; no private financial records.\n

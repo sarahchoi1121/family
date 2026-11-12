@@ -82,7 +82,7 @@
     const record={id:uid(),account:r.name,currency:r.currency,date:r.date,openingDate:r.snap.date,openingAmount:Number(r.snap.amount),movement:r.m.amount,transactionCount:r.m.count,calculated:r.expected,actual:r.actual,difference:r.difference,createdAt:new Date().toISOString()};
     db.reconciliationHistory.push(record);
     // A reconciliation is an audit record, not a silent correction to the opening balance.
-    save();update();alert('Reconciliation record saved on this device.');
+    save();update();render();alert('Reconciliation record saved on this device.');
   }
   paint();
   const originalRender=render;

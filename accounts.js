@@ -29,27 +29,38 @@
   }
   function drawBalances(){
     const accountGroups=groups();const known=accountGroups.map(g=>({name:g.label,b:accountBalance(g.label)})).filter(x=>x.b!==null);const grouped={};known.forEach(x=>{const c=accountCurrency(x.name);grouped[c]=(grouped[c]||0)+x.b});const totals=Object.entries(grouped).map(([c,n])=>fmt(n,c)).join(' · ');const missing=accountGroups.length-known.length;const expanded=localStorage.getItem('ff_balance_expanded')==='1';$('homeAccountBalances').innerHTML=`<button type="button" id="balanceToggle" class="balance-toggle" aria-expanded="${expanded}"><span><span class="balance-total">${known.length?escapeHtml(totals):'Not reconciled'}</span><br><small>${known.length} confirmed · ${missing} unverified ${missing?'· total excludes unverified accounts':''}</small></span><span>${expanded?'▲':'▼'}</span></button><div id="balanceDetail" class="balance-detail" ${expanded?'':'hidden'}>${accountGroups.map(g=>balanceRow(g.label)).join('')}</div>`;$('balanceToggle').onclick=()=>{const detail=$('balanceDetail');detail.hidden=!detail.hidden;$('balanceToggle').setAttribute('aria-expanded',String(!detail.hidden));$('balanceToggle').lastElementChild.textContent=detail.hidden?'▼':'▲';localStorage.setItem('ff_balance_expanded',detail.hidden?'0':'1')};
-    let host=$('balanceSettings');host.replaceChildren();
+    let host=$('balanceSettings');const recHost=document.getElementById('bankReconciliation');if(recHost&&host.contains(recHost)){document.querySelector('#settings')?.append(recHost);recHost.hidden=true;}host.replaceChildren();
+    const wrap=document.createElement('div');wrap.style.overflowX='auto';
+    const table=document.createElement('table');table.style.cssText='width:100%;min-width:670px;border-collapse:collapse;font-size:13px';
+    table.innerHTML='<thead><tr><th>Account</th><th>Currency</th><th>Balance</th><th>As of date</th><th>Transactions</th><th>Difference</th><th>Actions</th></tr></thead>';
+    const tbody=document.createElement('tbody');table.append(tbody);wrap.append(table);host.append(wrap);
+    const countFor=name=>db.transactions.filter(t=>sameAccount(t.account,name)||(t.type==='transfer'&&sameAccount(t.transferTo,name))).length;
     accountGroups.forEach(group=>{
-      const name=group.label;let snap=db.accountSnapshots[group.snapshotKey]||{};
-      let panel=document.createElement('div');panel.className='receipt-item';
-      let title=document.createElement('strong');title.textContent=name;
-      let grid=document.createElement('div');grid.className='grid2';
-      let amountBox=document.createElement('div'),dateBox=document.createElement('div');
-      let al=document.createElement('label');al.textContent='Confirmed balance ('+accountCurrency(name)+')';
-      let amount=document.createElement('input');amount.type='number';amount.step='0.01';amount.placeholder='e.g. 1250.00';amount.value=snap.amount??'';
-      let dl=document.createElement('label');dl.textContent='As of date';
-      let date=document.createElement('input');date.type='date';date.value=snap.date||dateToday();
-      amountBox.append(al,amount);dateBox.append(dl,date);grid.append(amountBox,dateBox);
-      let btn=document.createElement('button');btn.className='secondary';btn.style.marginTop='8px';btn.textContent='Save confirmed balance';
-      btn.onclick=()=>{
-        if(amount.value.trim()===''||!Number.isFinite(Number(amount.value))||!date.value){alert('Enter a valid balance and date');return}
-        if(date.value>dateToday()&&!confirm('This date is in the future. Continue?'))return;
-        db.accountSnapshots[group.snapshotKey]={amount:Math.round(Number(amount.value)*100)/100,date:date.value};save();drawBalances();
-      };
-      let currencyBox=document.createElement('div');let cl=document.createElement('label');cl.textContent='Account currency';let cs=document.createElement('select');['GBP','HKD','JPY','USD','EUR','AUD','CAD','CNY','SGD','CHF','TWD','NZD',...Object.values(db.accountCurrencies)].filter((x,i,a)=>a.indexOf(x)===i).forEach(c=>cs.add(new Option(c,c)));cs.value=accountCurrency(name);cs.onchange=()=>{if(cs.value===accountCurrency(name))return;if(!confirm('Change account currency to '+cs.value+'? Existing transaction currencies and confirmed balances will NOT be converted. Please verify the balance and transaction currencies.')){cs.value=accountCurrency(name);return}for(const alias of group.aliases){db.accountCurrencies[alias]=cs.value;delete db.accountSnapshots[alias]};save();drawBalances()};currencyBox.append(cl,cs);
-      let info=document.createElement('div');info.className='muted';info.style.marginTop='8px';info.textContent='Calculated now: '+(accountBalance(name)===null?'Not set':fmt(accountBalance(name),accountCurrency(name)));
-      if(group.conflict){const warning=document.createElement('p');warning.className='notice';warning.textContent='Account aliases have conflicting currency or confirmed balance settings. Kept separate; review manually.';panel.append(warning)}panel.append(title,currencyBox,grid,btn,info);host.append(panel);
+      const name=group.label, snap=db.accountSnapshots[group.snapshotKey]||{},currency=accountCurrency(name),balance=accountBalance(name),count=countFor(name);
+      const latest=(db.reconciliationHistory||[]).filter(r=>sameAccount(r.account,name)).sort((a,b)=>String(b.createdAt||b.date).localeCompare(String(a.createdAt||a.date)))[0];
+      const tr=document.createElement('tr');
+      const cells=[name,currency,balance===null?'Not set':fmt(balance,currency),snap.date||'Not set',String(count),latest&&Number.isFinite(Number(latest.difference))?fmt(latest.difference,currency):'Not set'];
+      for(const val of cells){const td=document.createElement('td');td.textContent=val;td.style.cssText='padding:10px 7px;border-bottom:1px solid #dce6e2;white-space:nowrap';tr.append(td)}
+      const action=document.createElement('td');action.style.cssText='padding:8px;border-bottom:1px solid #dce6e2';
+      const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='Edit / Reconcile';edit.style.cssText='padding:8px;font-size:12px;white-space:nowrap';action.append(edit);
+      if(count===0){const del=document.createElement('button');del.type='button';del.textContent='Delete';del.className='danger';del.style.cssText='padding:8px;font-size:12px;margin-left:5px';del.onclick=()=>{
+        const referenced=(db.transactions||[]).some(t=>sameAccount(t.account,name)||sameAccount(t.transferTo,name))||(db.reconciliationHistory||[]).some(r=>sameAccount(r.account,name));
+        if(referenced){alert('Account has linked transactions or reconciliation history. Cannot delete.');return}
+        if(!confirm('Delete unused account '+name+'? This removes its confirmed balance and account settings.'))return;
+        db.accounts=db.accounts.filter(a=>!sameAccount(a,name));for(const alias of group.aliases){delete db.accountCurrencies[alias];delete db.accountSnapshots[alias]};delete db.accountSnapshots[group.snapshotKey];save();drawBalances();
+      };action.append(del)}tr.append(action);tbody.append(tr);
+      const detail=document.createElement('tr');detail.hidden=true;const td=document.createElement('td');td.colSpan=7;td.style.cssText='padding:14px;background:#f3f8f6';detail.append(td);tbody.append(detail);
+      const editBox=document.createElement('div');editBox.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:end';
+      const amountBox=document.createElement('div'),dateBox=document.createElement('div'),currencyBox=document.createElement('div');
+      const al=document.createElement('label');al.textContent='Confirmed balance ('+currency+')';const amount=document.createElement('input');amount.type='number';amount.step='0.01';amount.value=snap.amount??'';amountBox.append(al,amount);
+      const dl=document.createElement('label');dl.textContent='As of date';const date=document.createElement('input');date.type='date';date.value=snap.date||dateToday();dateBox.append(dl,date);
+      const cl=document.createElement('label');cl.textContent='Currency';const cs=document.createElement('select');['GBP','HKD','JPY','USD','EUR','AUD','CAD','CNY','SGD','CHF','TWD','NZD',...Object.values(db.accountCurrencies)].filter((x,i,a)=>a.indexOf(x)===i).forEach(c=>cs.add(new Option(c,c)));cs.value=currency;currencyBox.append(cl,cs);
+      cs.onchange=()=>{if(cs.value===accountCurrency(name))return;if(!confirm('Change currency? Existing transactions and balances are not converted.')){cs.value=accountCurrency(name);return}for(const alias of group.aliases){db.accountCurrencies[alias]=cs.value;delete db.accountSnapshots[alias]};save();drawBalances()};
+      const btn=document.createElement('button');btn.className='secondary';btn.textContent='Save balance';btn.onclick=()=>{if(amount.value.trim()===''||!Number.isFinite(Number(amount.value))||!date.value){alert('Enter valid balance and date');return}if(date.value>dateToday()&&!confirm('Date is in future. Continue?'))return;db.accountSnapshots[group.snapshotKey]={amount:Math.round(Number(amount.value)*100)/100,date:date.value};save();drawBalances()};
+      editBox.append(currencyBox,amountBox,dateBox,btn);td.append(editBox);
+      const recMount=document.createElement('div');recMount.className='inline-reconciliation';recMount.style.marginTop='12px';td.append(recMount);
+      edit.onclick=()=>{const opening=detail.hidden;tbody.querySelectorAll('tr').forEach(row=>{if(row!==tr)row.hidden=row.dataset.detail==='yes'});detail.hidden=!opening; if(opening){const rec=document.getElementById('bankReconciliation');if(rec){rec.hidden=false;recMount.append(rec);const sel=rec.querySelector('#recAccount');if(sel){sel.value=name;sel.dispatchEvent(new Event('input',{bubbles:true}))}}}};
+      detail.dataset.detail='yes';
     });
     for(const id of ['transferFrom','transferTo'])opt(id,accountGroups.map(g=>g.label));
   }
