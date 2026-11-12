@@ -1,1 +1,5 @@
-Family Finance v1.2.11 Import Fix\n\nChanges: skip Excel worksheet archive by default; prepare records in 200-item yielding batches; persist IndexedDB ledger without blocking on localStorage mirror; defer report render; visible import progress. Existing account and other features retained from v1.2.10.\n\nIMPORTANT: Backup locally before update. Do not upload personal JSON/Excel files to public GitHub. Replace repository app files with contents of ZIP, preserving file paths. Reload app after successful import. Archive optional.\n\nNote: No live iPhone Safari end-to-end test performed.\n
+Family Finance v1.2.12 — Comparison monthly history import.
+
+Upload all app files to the PUBLIC GitHub repo. Do NOT upload the separate PRIVATE JSON.
+
+Import private JSON from Settings. To replace any old pre-Nov-2026 ledger records, tick the explicit Replace option (after exporting backup). Otherwise fixed IDs avoid repeated duplicate imports of these summaries. Historical records are MONTHLY CATEGORY SUMMARIES, not real bank transactions; do not use the synthetic Excel Comparison History account as a verified bank balance. November 2026 onward existing transactions are preserved.
