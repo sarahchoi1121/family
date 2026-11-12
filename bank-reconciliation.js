@@ -86,5 +86,5 @@
   }
   paint();
   const originalRender=render;
-  render=function(){originalRender();const selected=host.querySelector('#recAccount')?.value;const names=groups().map(g=>g.label);if(!names.includes(selected))paint();else update()};
+  render=function(){originalRender();if(document.getElementById('settings').classList.contains('hidden'))return;const selected=host.querySelector('#recAccount')?.value;const names=groups().map(g=>g.label);if(!names.includes(selected))paint();else update()};
 })();

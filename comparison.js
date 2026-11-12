@@ -46,5 +46,5 @@
    tables+=`<h3>${c}</h3><table class="compare-table"><thead><tr><th>Category</th>${head}</tr></thead><tbody>${body||`<tr><td colspan="${ys.length+1}">No matching categories</td></tr>`}<tr><td><strong>Total</strong></td>${ys.map(y=>`<td><strong>${fmt(val(data.get(c+'|'+y),cm),c)}</strong></td>`).join('')}</tr></tbody></table>`
   }$('categoryComparison').innerHTML=tables||'<p class="notice">No matching transactions.</p>';
  }
- [from,to,metric,catMetric,hide,currencySel].forEach(el=>el.addEventListener('change',draw));const prev=render;render=function(){prev();draw()};draw();
+ [from,to,metric,catMetric,hide,currencySel].forEach(el=>el.addEventListener('change',draw));const prev=render;render=function(){prev();if(!$('compare').classList.contains('hidden'))draw()};draw();
 })();

@@ -32,7 +32,7 @@ function injectGiftSelect(){const account=el('account'),form=el('transactionForm
 // gift balance is derived from the recorded transaction, so edits/deletes are automatically reconciled.
 el('transactionForm')?.addEventListener('submit',e=>{if(!isGiftAccount(el('account').value)||el('type').value!=='expense')return;const merchant=el('giftMerchantSelect')?.value,amount=Number(el('amount').value);if(!merchant){e.preventDefault();e.stopImmediatePropagation();alert('Select the gift-card merchant');return}if(!Number.isFinite(amount)||amount<=0||cents(amount)>cents(giftRemaining(merchant))){e.preventDefault();e.stopImmediatePropagation();alert('Gift-card balance is insufficient or amount is invalid');return} // app.js reads this on submit
 },true);
-const oldRender=render;render=function(){oldRender();addWalletSections();injectGiftSelect()};
+const oldRender=render;render=function(){oldRender();if(!el('settings').classList.contains('hidden'))addWalletSections();if(!el('add').classList.contains('hidden'))injectGiftSelect()};
 el('account')?.addEventListener('change',injectGiftSelect);el('type')?.addEventListener('change',injectGiftSelect);
 window.FFWallet={giftRemaining,isGiftAccount,selectedMerchant:()=>el('giftMerchantSelect')?.value||'',refresh:()=>render()};render();
 })();

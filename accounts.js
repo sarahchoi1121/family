@@ -73,6 +73,6 @@
     save();$('transferAmount').value='';drawBalances();alert('Transfer saved (not counted as income or spending).');
   };
   const originalRender=render;
-  render=function(){originalRender();drawBalances()};
+  render=function(){originalRender();if(!$('settings').classList.contains('hidden')||!$('home').classList.contains('hidden'))drawBalances()};
   render();
 })();
