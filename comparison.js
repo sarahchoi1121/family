@@ -4,7 +4,7 @@
  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
  for(let i=1;i<=12;i++){from.add(new Option(months[i-1],String(i)));to.add(new Option(months[i-1],String(i)))}from.value='1';to.value='12';
  const fmt=(n,c)=>FFCurrency.format(n/100,c),cents=t=>Math.round(Math.abs(Number(t.amount||0))*100)||0;
- const zero=()=>({income:0,expense:0,recurring:0,nonrecurring:0,fixed:0});
+ const zero=()=>({income:0,expense:0,recurring:0,nonrecurring:0,fixed:0,net:0});
  const val=(r,k)=>r?.[k]||0;
  const years=()=>[...new Set(db.transactions.map(t=>String(t.date||'').slice(0,4)).filter(x=>/^20\d{2}$/.test(x)))].sort();
  function draw(){
@@ -12,13 +12,33 @@
   const a=+from.value,b=+to.value,ys=years();if(a>b){$('yearBars').textContent='Start month must not be after end month.';$('categoryComparison').textContent='Choose a valid month range.';return}
   const tx=db.transactions.filter(t=>/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')&&+t.date.slice(5,7)>=a&&+t.date.slice(5,7)<=b&&t.type!=='transfer'&&(currencySel.value==='ALL'||FFCurrency.currency(t)===currencySel.value));
   const currencies=[...new Set(tx.map(FFCurrency.currency))].sort(), data=new Map(),cats=new Map();
-  for(const t of tx){const c=FFCurrency.currency(t),y=t.date.slice(0,4),mapped=FFMapping.classify(t.category),group=mapped,n=cents(t),raw=t.originalSignedAmount??t.sourceAmount,signed=(raw!==undefined&&raw!==null&&raw!==''&&Number.isFinite(Number(raw)))?Number(raw):null,sign=signed!==null?(signed<0?-1:1):(t.type==='income'?-1:1),incomeSign=signed!==null?(signed<0?1:-1):(t.type==='income'?1:-1);const key=c+'|'+y;
-   if(!data.has(key))data.set(key,zero());const r=data.get(key);if(group==='income')r.income+=n*incomeSign;else{r.expense+=n*sign;r[group]+=n*sign}
-   const name=String(t.category||'Uncategorised').trim()||'Uncategorised',k=c+'|'+FFMapping.norm(name)+'|'+group;if(!cats.has(k))cats.set(k,{name,c,group,vals:new Map()});const cat=cats.get(k);if(!cat.vals.has(y))cat.vals.set(y,zero());const v=cat.vals.get(y);if(group==='income')v.income+=n*incomeSign;else{v.expense+=n*sign;v[group]+=n*sign}
+  for(const t of tx){
+   const c=FFCurrency.currency(t),y=t.date.slice(0,4),historical=t.comparisonMonthly===true;
+   const group=historical&&['income','recurring','nonrecurring','fixed'].includes(t.comparisonGroup)?t.comparisonGroup:FFMapping.classify(t.category);
+   const raw=t.originalSignedAmount??t.sourceAmount;
+   const hasSigned=raw!==undefined&&raw!==null&&raw!==''&&Number.isFinite(Number(raw));
+   const signed=hasSigned?Number(raw)*100:null;
+   const n=historical&&hasSigned?Math.abs(signed):cents(t);
+   // Historical Excel uses negative income and signed expenses: FY Net = expenses + signed income.
+   // Ordinary app transactions retain their normal income-minus-expenses Net convention.
+   const expAmount=historical&&hasSigned?signed:(hasSigned?signed:n);
+   const incomeAmount=historical&&hasSigned?-signed:(hasSigned?-signed:n);
+   const netAmount=historical&&hasSigned?signed:(group==='income'?incomeAmount:-expAmount);
+   const key=c+'|'+y;
+   if(!data.has(key))data.set(key,zero());const r=data.get(key);
+   r.net+=netAmount;
+   if(group==='income')r.income+=incomeAmount;
+   else{r.expense+=expAmount;r[group]+=expAmount}
+   const name=String(t.category||'Uncategorised').trim()||'Uncategorised',k=c+'|'+FFMapping.norm(name)+'|'+group;
+   if(!cats.has(k))cats.set(k,{name,c,group,vals:new Map()});const cat=cats.get(k);
+   if(!cat.vals.has(y))cat.vals.set(y,zero());const v=cat.vals.get(y);
+   v.net+=netAmount;
+   if(group==='income')v.income+=incomeAmount;else{v.expense+=expAmount;v[group]+=expAmount}
   }
+
   const groups=[['Income','income'],['Recurring','recurring'],['Non-recurring','nonrecurring'],['Fixed assets','fixed']];
   const head=ys.map(y=>`<th scope="col">${y}</th>`).join('');
-  $('compareFourSummary').innerHTML=currencies.length?currencies.map(c=>`<h3>${c}</h3><table class="compare-table"><thead><tr><th>Group</th>${head}</tr></thead><tbody>${groups.map(([name,k])=>`<tr><td>${name}</td>${ys.map(y=>`<td>${fmt(val(data.get(c+'|'+y),k),c)}</td>`).join('')}</tr>`).join('')}<tr class="net-summary-row"><th scope="row">Net</th>${ys.map(y=>{const r=data.get(c+'|'+y);const net=val(r,'income')-val(r,'recurring')-val(r,'nonrecurring')-val(r,'fixed');return `<td class="${net<0?'net-negative':net>0?'net-positive':'net-zero'}"><strong>${fmt(net,c)}</strong></td>`}).join('')}</tr></tbody></table>`).join(''):'<p class="notice">No transactions for selected period and currency.</p>';
+  $('compareFourSummary').innerHTML=currencies.length?currencies.map(c=>`<h3>${c}</h3><table class="compare-table"><thead><tr><th>Group</th>${head}</tr></thead><tbody>${groups.map(([name,k])=>`<tr><td>${name}</td>${ys.map(y=>`<td>${fmt(val(data.get(c+'|'+y),k),c)}</td>`).join('')}</tr>`).join('')}<tr class="net-summary-row"><th scope="row">Net</th>${ys.map(y=>{const r=data.get(c+'|'+y);const net=val(r,'net');return `<td class="${net<0?'net-negative':net>0?'net-positive':'net-zero'}"><strong>${fmt(net,c)}</strong></td>`}).join('')}</tr></tbody></table>`).join(''):'<p class="notice">No transactions for selected period and currency.</p>';
   const mode=metric.value;let bars='';for(const c of currencies){const values=ys.map(y=>({y,n:val(data.get(c+'|'+y),mode)})),max=Math.max(1,...values.map(x=>Math.abs(x.n)));bars+=`<h3>${c}</h3>`+values.map(x=>`<div class="compare-line"><small>${x.y}</small><div class="compare-bar-track"><div class="compare-bar-fill" style="width:${(Math.abs(x.n)/max*100).toFixed(1)}%"></div></div><strong>${fmt(x.n,c)}</strong></div>`).join('')}$('yearBars').innerHTML=bars||'<p class="notice">No dated transactions for this currency.</p>';
   const cm=catMetric.value;let tables='';for(const c of currencies){const rows=[...cats.values()].filter(x=>x.c===c&&(!hide.checked||ys.some(y=>val(x.vals.get(y),cm)!==0))&&(cm==='income'?x.group==='income':cm==='expense'?x.group!=='income':x.group===cm)).sort((x,y)=>x.name.localeCompare(y.name,'en-GB'));
    const body=rows.map(x=>`<tr><td>${escapeHtml(x.name)}</td>${ys.map(y=>`<td>${fmt(val(x.vals.get(y),cm),c)}</td>`).join('')}</tr>`).join('');
