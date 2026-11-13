@@ -7,10 +7,17 @@
  const closed=new Set();let signature='',lastData=null;
  const get=(m,k)=>m.get(k)||0;
  function build(){
-  const tx=db.transactions||[],sig=tx.length+'|'+tx.map(t=>[t.id,t.amount,t.date,t.category,t.type,t.currency,t.comparisonGroup,t.originalSignedAmount,JSON.stringify(t.categoryBreakdown||[])].join(':')).join('|');
+  const tx=db.transactions||[];
+  const sig=String(db._ledgerRevision||0)+'|'+tx.length+'|'+(db.monthlyArchive?.revision||0);
   if(sig===signature&&lastData)return lastData;
   const records=[],years=new Set(),currencies=new Set();
+  const archived=db.monthlyArchive?.months||{};
+  for(const [ym,entry] of Object.entries(archived)){
+   for(const r of entry.records||[]){records.push({...r});years.add(r.y);currencies.add(r.c)}
+  }
   for(const t of tx){
+   const ym=(t.date||'').slice(0,7);
+   if(archived[ym] && (t.comparisonMonthly===true || archived[ym].status==='closed'))continue;
    if(!/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')||t.type==='transfer')continue;
    const c=FFCurrency.currency(t),y=t.date.slice(0,4),m=+t.date.slice(5,7),historical=t.comparisonMonthly===true;
    const g=historical&&['income','recurring','nonrecurring','fixed'].includes(t.comparisonGroup)?t.comparisonGroup:FFMapping.classify(t.category);
