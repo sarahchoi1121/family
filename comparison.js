@@ -7,7 +7,7 @@
  const closed=new Set();let signature='',lastData=null;
  const get=(m,k)=>m.get(k)||0;
  function build(){
-  const tx=db.transactions||[],sig=tx.length+'|'+tx.map(t=>[t.id,t.amount,t.date,t.category,t.type,t.currency,t.comparisonGroup,t.originalSignedAmount].join(':')).join('|');
+  const tx=db.transactions||[],sig=tx.length+'|'+tx.map(t=>[t.id,t.amount,t.date,t.category,t.type,t.currency,t.comparisonGroup,t.originalSignedAmount,JSON.stringify(t.categoryBreakdown||[])].join(':')).join('|');
   if(sig===signature&&lastData)return lastData;
   const records=[],years=new Set(),currencies=new Set();
   for(const t of tx){
@@ -20,7 +20,9 @@
    const n=Math.round(Math.abs(Number(t.amount||0))*100)||0;
    const signed=hasSigned?-Math.round(Number(raw)*100):(g==='income'?n:-n);
    const name=String(t.category||'Uncategorised').trim()||'Uncategorised';
-   records.push({c,y,m,g,name,signed});years.add(y);currencies.add(c);
+   if(Array.isArray(t.categoryBreakdown)&&t.categoryBreakdown.length&&!historical){
+    for(const part of t.categoryBreakdown){const pg=['income','recurring','nonrecurring','fixed'].includes(part.kind)?part.kind:FFMapping.classify(part.category);const ps=Math.round(Math.abs(Number(part.amount||0))*100)*(Number(part.amount)<0?-1:1);records.push({c,y,m,g:pg,name:String(part.category||'Uncategorised'),signed:pg==='income'?ps:-ps});}
+   }else records.push({c,y,m,g,name,signed});years.add(y);currencies.add(c);
   }
   lastData={records,years:[...years].sort(),currencies:[...currencies].sort()};signature=sig;return lastData;
  }
